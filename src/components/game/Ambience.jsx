@@ -1,6 +1,7 @@
 import { useMemo, useRef } from 'react';
 import { CanvasTexture, NearestFilter, DoubleSide } from 'three';
 import { useFrame } from '@react-three/fiber';
+import { getActiveMap } from '@/game/lobby.js';
 
 // Atmosférické prvky náměstí: driftující mraky, vlající české vlajky
 // na střechách a tryskající voda v kašně. Čistě vizuální — žádné collidery.
@@ -177,11 +178,13 @@ function FountainSpray() {
 }
 
 export default function Ambience() {
+  const map = useMemo(() => getActiveMap(), []);
   return (
     <>
       <Clouds />
       <Flags />
-      <FountainSpray />
+      {/* tryskající voda jen tam, kde je kašna */}
+      {map.centerpiece === 'fountain' && <FountainSpray />}
     </>
   );
 }

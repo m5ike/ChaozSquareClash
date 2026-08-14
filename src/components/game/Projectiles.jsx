@@ -49,6 +49,7 @@ export default function Projectiles() {
       proj.damage = weapon.damage;
       proj.owner = owner;
       proj.shooterIndex = weapon.enemyIndex ?? -1;
+      proj.shooterTeam = owner === 'player' ? 'blue' : weapon.team || 'red';
       proj.x = origin.x;
       proj.y = origin.y;
       proj.z = origin.z;
@@ -120,11 +121,15 @@ export default function Projectiles() {
       const mesh = meshesRef.current[i];
       if (mesh) mesh.position.set(proj.x, proj.y, proj.z);
 
-      if (proj.owner === 'player') {
-        // Kolize s boty (koule o poloměru 0.6 → čtverec vzdálenosti 0.36)
+      if (proj.owner === 'player' || proj.owner === 'enemy') {
+        // Kolize s boty — přeskoč spoluhráče stejného týmu a střelce samotného
+        let consumed = false;
         for (let e = 0; e < gameState.enemies.length; e++) {
           const enemy = gameState.enemies[e];
           if (!enemy?.alive || !enemy.body) continue;
+          if (enemy.team === proj.shooterTeam) continue;
+          if (proj.owner === 'enemy' && proj.shooterIndex === e) continue;
+          if (enemy.invincibleTimer > 0) continue;
           const pos = enemy.body.translation();
           const dx = proj.x - pos.x;
           const dy = proj.y - pos.y;
@@ -142,27 +147,70 @@ export default function Projectiles() {
               damage: proj.damage * zone.mult,
               crit: zone.crit,
               part: zone.part,
+              byPlayer: proj.owner === 'player',
             });
             if (enemy.health <= 0) {
               enemy.alive = false;
               enemy.respawnTimer = BOT.respawnTime;
-              gameState.score++;
-              gameState.kills++;
               if (gameState.botScores[e]) gameState.botScores[e].deaths++;
-              bus.emit('score-changed', gameState.score);
-              bus.emit('enemy-killed', {
-                index: e,
-                name: enemy.character?.name,
-                crit: zone.crit,
-                part: zone.part,
-              });
+              if (proj.owner === 'player') {
+                gameState.score++;
+                gameState.kills++;
+                if (gameState.mode?.id === 'tdm') gameState.mode.teamScores.blue++;
+                bus.emit('score-changed', gameState.score);
+                bus.emit('enemy-killed', {
+                  index: e,
+                  name: enemy.character?.name,
+                  crit: zone.crit,
+                  part: zone.part,
+                });
+              } else {
+                // bot zabil bota — skóre týmu střelce + killfeed
+                const shooter = gameState.enemies[proj.shooterIndex];
+                if (shooter && gameState.botScores[proj.shooterIndex]) {
+                  gameState.botScores[proj.shooterIndex].kills++;
+                }
+                if (gameState.mode?.id === 'tdm' && shooter) {
+                  gameState.mode.teamScores[shooter.team]++;
+                }
+                bus.emit('bot-killed-bot', {
+                  killer: shooter?.character?.nickname || 'Bot',
+                  victim: enemy.character?.nickname || 'Bot',
+                });
+              }
             }
             deactivate(i);
+            consumed = true;
             break;
           }
         }
-      } else if (
+        if (consumed) continue;
+        // Kolize se vzdálenými hráči (multiplayer) — jen projektily hráče;
+        // poškození aplikuje autoritativně zasažený klient přes HitEvent.
+        if (proj.owner === 'player' && gameState.remotePlayers.length) {
+          for (const peer of gameState.remotePlayers) {
+            if (!peer.alive) continue;
+            const dx = proj.x - peer.pos.x;
+            const dy = proj.y - (peer.pos.y + 0.5);
+            const dz = proj.z - peer.pos.z;
+            if (dx * dx + dy * dy + dz * dz < 0.36) {
+              const zone = randomHitZone();
+              bus.emit('remote-player-hit', {
+                key: peer.key,
+                damage: proj.damage * zone.mult,
+                crit: zone.crit,
+              });
+              deactivate(i);
+              consumed = true;
+              break;
+            }
+          }
+        }
+        if (consumed) continue;
+      }
+      if (
         proj.owner === 'enemy' &&
+        proj.shooterTeam !== 'blue' &&
         gameState.phase === 'playing' &&
         !gameState.playerInvincible &&
         !gameState.gameSettings?.godMode
@@ -186,6 +234,7 @@ export default function Projectiles() {
             if (proj.shooterIndex >= 0 && gameState.botScores[proj.shooterIndex]) {
               gameState.botScores[proj.shooterIndex].kills++;
             }
+            if (gameState.mode?.id === 'tdm') gameState.mode.teamScores.red++;
             bus.emit('player-died', { killer });
           }
           deactivate(i);

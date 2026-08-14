@@ -4,6 +4,9 @@ import { bus } from '@/game/events.js';
 import { input, gameState, getSelectedCharacter } from '@/game/state.js';
 import { RESPAWN_SECONDS, WIN_SCORE } from '@/game/constants.js';
 import { getBindings, formatKeyLabel } from '@/game/keybindings.js';
+import { getModeById } from '@/game/modes.js';
+import { getActiveSession } from '@/game/lobby.js';
+import { startSync, leaveRoom } from '@/multiplayer/transport.js';
 import { MatchResult } from '@/api/base44Client.js';
 import GameContainer from '@/components/game/GameContainer.jsx';
 import OrientationWarning from '@/components/game/OrientationWarning.jsx';
@@ -32,6 +35,8 @@ export default function Play() {
   const [powerActive, setPowerActive] = useState(false);
   const [hitMarker, setHitMarker] = useState(null); // {t, crit} — potvrzení zásahu u zaměřovače
   const [damageTick, setDamageTick] = useState(0); // časová značka poklesu zdraví (vinětace)
+  const [gameOver, setGameOver] = useState(null); // {won, reason} — konec zápasu
+  const [modeHud, setModeHud] = useState(null); // stav HUD panelu herního módu
   const lastHealthRef = useRef(null);
 
   // Desktop = přesné polohovací zařízení (myš/trackpad)
@@ -71,7 +76,34 @@ export default function Play() {
       setHealth(Math.max(0, value));
     };
     const onHitEnemy = (info) => setHitMarker({ t: Date.now(), crit: !!info?.crit });
-    const onScoreChanged = (value) => setScore(value);
+    const onScoreChanged = (value) => {
+      setScore(value);
+      // Deathmatch: výhra při dosažení cílového skóre
+      const mode = gameState.mode;
+      if ((mode?.id ?? 'dm') === 'dm' && value >= WIN_SCORE && mode && !mode.finished) {
+        mode.finished = true;
+        bus.emit('game-over', { won: true, reason: `🏆 Dosáhl jsi ${WIN_SCORE} bodů!` });
+      }
+    };
+    const onModeEvent = (info) => {
+      if (info?.text) setKillfeed((feed) => [info.text, ...feed].slice(0, 5));
+    };
+    const onBotKilledBot = (info) => {
+      setKillfeed((feed) => [`💀 ${info?.killer || 'Bot'} → ${info?.victim || 'Bot'}`, ...feed].slice(0, 5));
+    };
+    const onGameOver = (info) => {
+      setGameOver({ won: info?.won !== false, reason: info?.reason || '' });
+      setShowScoreboard(false);
+      // finální zápis výsledku (výherní záznamy pohání série ve statistikách)
+      MatchResult.create({
+        character_id: character?.id || '',
+        character_name: character?.name || '',
+        score: gameState.score,
+        kills: gameState.kills,
+        deaths: gameState.deaths,
+        is_bot: false,
+      }).catch(() => {});
+    };
     const onEnemyKilled = (info) => {
       setKills((prev) => prev + 1);
       const critPrefix = info?.crit ? `💥 KRIT! ${info.part} ` : '';
@@ -109,6 +141,9 @@ export default function Play() {
     bus.on('health-changed', onHealthChanged);
     bus.on('hit-enemy', onHitEnemy);
     bus.on('score-changed', onScoreChanged);
+    bus.on('mode-event', onModeEvent);
+    bus.on('bot-killed-bot', onBotKilledBot);
+    bus.on('game-over', onGameOver);
     bus.on('enemy-killed', onEnemyKilled);
     bus.on('player-died', onPlayerDied);
     bus.on('player-respawned', onPlayerRespawned);
@@ -122,6 +157,9 @@ export default function Play() {
       bus.off('health-changed', onHealthChanged);
       bus.off('hit-enemy', onHitEnemy);
       bus.off('score-changed', onScoreChanged);
+      bus.off('mode-event', onModeEvent);
+      bus.off('bot-killed-bot', onBotKilledBot);
+      bus.off('game-over', onGameOver);
       bus.off('enemy-killed', onEnemyKilled);
       bus.off('player-died', onPlayerDied);
       bus.off('player-respawned', onPlayerRespawned);
@@ -136,6 +174,46 @@ export default function Play() {
     const interval = setInterval(() => setRespawnTimer((t) => Math.max(0, t - 0.1)), 100);
     return () => clearInterval(interval);
   }, [phase]);
+
+  // Multiplayer: synchronizace stavu po dobu hry, odchod z místnosti při unmountu
+  useEffect(() => {
+    const session = getActiveSession();
+    if (!session) return;
+    const stop = startSync(session);
+    return () => {
+      stop();
+      leaveRoom();
+    };
+  }, []);
+
+  // HUD panel herního módu (TDM skóre / CTF vlajky / KOTH držení) — polling 300 ms
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const mode = gameState.mode;
+      if (!mode || mode.id === 'dm') {
+        setModeHud((prev) => (prev === null ? prev : null));
+        return;
+      }
+      if (mode.id === 'tdm') {
+        setModeHud({ type: 'tdm', blue: mode.teamScores.blue, red: mode.teamScores.red });
+      } else if (mode.id === 'ctf') {
+        setModeHud({
+          type: 'ctf',
+          blue: mode.captures.blue,
+          red: mode.captures.red,
+          carrying: mode.redFlagCarrier === 'player',
+        });
+      } else if (mode.id === 'koth') {
+        setModeHud({
+          type: 'koth',
+          progress: mode.holdProgress,
+          target: getModeById('koth').holdSeconds,
+          occupant: mode.zoneOccupant,
+        });
+      }
+    }, 300);
+    return () => clearInterval(interval);
+  }, []);
 
   // Otevřený scoreboard se průběžně překresluje (čte živé skóre botů z gameState)
   useEffect(() => {
@@ -216,6 +294,7 @@ export default function Play() {
     setShowScoreboard(false);
     setPowerCooldown(0);
     setPowerActive(false);
+    setGameOver(null);
     bus.emit('restart-game');
   };
 
@@ -370,14 +449,25 @@ export default function Play() {
       deaths: bot.deaths,
       score: bot.score,
     }));
-    return [playerRow, ...botRows].sort((a, b) => b.kills - a.kills || b.score - a.score);
-  }, [kills, deaths, score, character, phase, respawnTimer]);
+    // multiplayer: řádky vzdálených hráčů místo botů
+    const peerRows = (gameState.remotePlayers || []).map((peer) => ({
+      name: peer.nickname,
+      kills: peer.kills,
+      deaths: peer.deaths,
+      score: peer.kills,
+    }));
+    return [playerRow, ...botRows, ...peerRows].sort(
+      (a, b) => b.kills - a.kills || b.score - a.score
+    );
+  }, [kills, deaths, score, character, phase, respawnTimer, gameOver]);
 
   const bindings = getBindings();
 
   if (!character) return null;
 
-  const totalPlayers = 1 + (gameState.botScores?.length || 0);
+  const totalPlayers = getActiveSession()
+    ? 1 + (gameState.remotePlayers?.length || 0)
+    : 1 + (gameState.botScores?.length || 0);
 
   return (
     <main className="game-page">
@@ -501,6 +591,62 @@ export default function Play() {
               {totalPlayers}/{WIN_SCORE}
             </div>
           </div>
+
+          {/* HUD herního módu (pod řádkem skóre) */}
+          {modeHud && (
+            <div className="absolute top-12 left-1/2 -translate-x-1/2 pointer-events-none hud-t">
+              {modeHud.type === 'tdm' && (
+                <div
+                  className="flex items-center gap-2 text-sm font-bold px-3 py-1 rounded-lg"
+                  style={{ background: 'rgba(0,0,0,0.45)' }}
+                >
+                  <span className="text-blue-400">🎽 {modeHud.blue}</span>
+                  <span className="text-white/40">:</span>
+                  <span className="text-red-400">{modeHud.red}</span>
+                </div>
+              )}
+              {modeHud.type === 'ctf' && (
+                <div
+                  className="flex items-center gap-2 text-sm font-bold px-3 py-1 rounded-lg"
+                  style={{ background: 'rgba(0,0,0,0.45)' }}
+                >
+                  <span className="text-blue-400">🚩 {modeHud.blue}</span>
+                  <span className="text-white/40">:</span>
+                  <span className="text-red-400">{modeHud.red}</span>
+                  {modeHud.carrying && (
+                    <span className="text-yellow-300 text-xs animate-pulse">• NESEŠ VLAJKU</span>
+                  )}
+                </div>
+              )}
+              {modeHud.type === 'koth' && (
+                <div
+                  className="px-3 py-1 rounded-lg text-center"
+                  style={{ background: 'rgba(0,0,0,0.45)' }}
+                >
+                  <div className="text-xs font-bold text-white mb-0.5">
+                    👑 {Math.floor(modeHud.progress)}s / {modeHud.target}s
+                    {modeHud.occupant === 'contested' && (
+                      <span className="text-orange-400 ml-1">⚔ boj o zónu</span>
+                    )}
+                  </div>
+                  <div className="w-40 h-1.5 rounded-full overflow-hidden bg-white/15">
+                    <div
+                      className="h-full transition-all"
+                      style={{
+                        width: `${Math.min(100, (modeHud.progress / modeHud.target) * 100)}%`,
+                        backgroundColor:
+                          modeHud.occupant === 'player'
+                            ? '#3b82f6'
+                            : modeHud.occupant === 'contested'
+                              ? '#f59e0b'
+                              : '#94a3b8',
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Killfeed */}
           {killfeed.length > 0 && (
@@ -763,8 +909,70 @@ export default function Play() {
             </div>
           )}
 
+          {/* Konec zápasu — výhra/prohra s finálním scoreboardem */}
+          {gameOver && (
+            <div
+              className="absolute inset-0 grid place-items-center pointer-events-auto z-20"
+              style={{ background: 'rgba(0,0,0,0.82)' }}
+            >
+              <div className="text-center">
+                <div
+                  className={`text-5xl font-black mb-2 ${gameOver.won ? 'text-yellow-400' : 'text-red-500'}`}
+                >
+                  {gameOver.won ? '🏆 VÍTĚZSTVÍ!' : '💀 PORÁŽKA'}
+                </div>
+                {gameOver.reason && <div className="text-white/70 mb-5">{gameOver.reason}</div>}
+                <div className="bg-black/60 rounded-lg p-4 min-w-[350px]">
+                  <table className="w-full text-sm text-white">
+                    <thead>
+                      <tr className="text-white/40 border-b border-white/10">
+                        <th className="text-left pb-2">#</th>
+                        <th className="text-left pb-2">Hráč</th>
+                        <th className="text-right pb-2">K</th>
+                        <th className="text-right pb-2">D</th>
+                        <th className="text-right pb-2">Skóre</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {scoreboardRows.map((row, index) => (
+                        <tr key={index} className={row.isPlayer ? 'text-yellow-400 font-bold' : ''}>
+                          <td className="py-1">{index + 1}</td>
+                          <td className="py-1">{row.name}</td>
+                          <td className="text-right py-1 text-green-400">{row.kills}</td>
+                          <td className="text-right py-1 text-red-400">{row.deaths}</td>
+                          <td className="text-right py-1">{row.score}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <div className="flex gap-2 mt-4 justify-center">
+                    <button
+                      onClick={restartGame}
+                      className="px-4 py-1.5 rounded-lg text-white text-xs font-bold"
+                      style={{ background: '#16a34a' }}
+                    >
+                      🔁 Ještě jednou
+                    </button>
+                    <button
+                      onClick={() => navigate('/leaderboard')}
+                      className="px-4 py-1.5 rounded-lg text-white/60 text-xs"
+                    >
+                      🏆 Žebříček
+                    </button>
+                    <button
+                      onClick={() => navigate('/')}
+                      className="px-4 py-1.5 rounded-lg text-white/60 text-xs"
+                    >
+                      Odejít
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Scoreboard / respawn overlay */}
-          {(showScoreboard || phase === 'respawning') && (
+          {!gameOver && (showScoreboard || phase === 'respawning') && (
             <div
               className="absolute inset-0 grid place-items-center pointer-events-auto"
               style={{ background: 'rgba(0,0,0,0.75)' }}

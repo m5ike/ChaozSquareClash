@@ -407,8 +407,8 @@ export default function Bots() {
       const pos = body.translation();
       const modelYaw = modelYawsRef.current[i];
 
-      // Globální stop stavy: respawn hráče zastaví jen červené bez cíle; stun zastaví vše
-      if (gameState.enemyStunTimer > 0 || enemy.stunTimer > 0) {
+      // Stun: hráčova schopnost omračuje jen červené, botí stun dle týmu
+      if ((gameState.enemyStunTimer > 0 && enemy.team === 'red') || enemy.stunTimer > 0) {
         if (anim) anim.speed = 0;
         continue;
       }

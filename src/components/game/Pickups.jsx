@@ -1,8 +1,8 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { bus } from '@/game/events.js';
 import { gameState } from '@/game/state.js';
-import { PICKUP_SPOTS } from '@/data/mapLayout.js';
+import { getActiveMap } from '@/game/lobby.js';
 
 // Kolik zdraví lékárnička doplní.
 const HEAL_AMOUNT = 35;
@@ -13,6 +13,8 @@ const PICKUP_RADIUS_SQ = 1;
 
 // Lékárničky — rotující zelené kříže na pevných místech mapy.
 export default function Pickups() {
+  // sběrná místa z aktivní mapy (vyhodnocuje se při mountu herní scény)
+  const PICKUP_SPOTS = useMemo(() => getActiveMap().pickupSpots, []);
   const crossRefs = useRef([]);
   const active = useRef(PICKUP_SPOTS.map(() => true));
   const respawnTimers = useRef(PICKUP_SPOTS.map(() => 0));

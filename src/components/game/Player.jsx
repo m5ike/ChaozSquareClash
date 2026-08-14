@@ -116,6 +116,8 @@ export default function Player() {
         case 'damage_all':
           for (const enemy of gameState.enemies) {
             if (!enemy?.alive) continue;
+            if (enemy.team === 'blue') continue; // schopnost nezraňuje spoluhráče
+            if (enemy.invincibleTimer > 0) continue;
             const damage = 25 * character.stats.dmgMult;
             enemy.health -= damage;
             bus.emit('hit-enemy', {
@@ -189,6 +191,9 @@ export default function Player() {
     input.look.dx = 0;
     input.look.dy = 0;
 
+    // Omráčení hráče (schopnost bota) — pohyb je zablokovaný, rozhlížení ne
+    if (gameState.playerStunTimer > 0) gameState.playerStunTimer -= delta;
+
     // Vstup pohybu: klávesnice + virtuální joystick, normalizace diagonály
     const keys = getKeys();
     let forward = 0;
@@ -215,8 +220,9 @@ export default function Player() {
     const sprintSpeed = input.sprint || keys.sprint ? baseSpeed * 1.5 : baseSpeed;
     const speed = gameState.playerSpeedBoost ? sprintSpeed * 1.8 : sprintSpeed;
     const vel = body.linvel();
-    const velX = (strafe * rightX + forward * forwardX) * speed;
-    const velZ = (strafe * rightZ + forward * forwardZ) * speed;
+    const stunned = gameState.playerStunTimer > 0;
+    const velX = stunned ? 0 : (strafe * rightX + forward * forwardX) * speed;
+    const velZ = stunned ? 0 : (strafe * rightZ + forward * forwardZ) * speed;
     body.setLinvel({ x: velX, y: vel.y, z: velZ }, true);
 
     // Skok jen s kontaktem se zemí (senzor u nohou)
@@ -298,11 +304,13 @@ export default function Player() {
     if (fireCooldownRef.current <= 0) input.firePressed = false;
   });
 
-  // Úder zblízka — zasáhne boty v dosahu zbraně v kuželu před hráčem
+  // Úder zblízka — zasáhne nepřátelské boty v dosahu zbraně v kuželu před hráčem
   function meleeAttack(origin, dir, weapon) {
     for (let i = 0; i < gameState.enemies.length; i++) {
       const enemy = gameState.enemies[i];
       if (!enemy?.alive || !enemy.body) continue;
+      if (enemy.team === 'blue') continue; // spoluhráče v týmových módech nebij
+      if (enemy.invincibleTimer > 0) continue;
       const enemyPos = enemy.body.translation();
       const dx = enemyPos.x - origin.x;
       const dy = enemyPos.y - origin.y;
@@ -324,6 +332,7 @@ export default function Player() {
           gameState.score++;
           gameState.kills++;
           if (gameState.botScores[i]) gameState.botScores[i].deaths++;
+          if (gameState.mode?.id === 'tdm') gameState.mode.teamScores.blue++;
           bus.emit('score-changed', gameState.score);
           bus.emit('enemy-killed', {
             index: i,

@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { KEY_BINDING_DEFS, defaultBindings, getBindings, saveKeybindings, formatKeyLabel } from '@/game/keybindings.js';
 import { DEFAULT_GAME_SETTINGS, loadGameSettings, saveGameSettings } from '@/game/settings.js';
 import { gameState } from '@/game/state.js';
+import { getQualitySetting, setQualitySetting } from '@/game/quality.js';
+import { getMuted, setMuted } from '@/game/audio.js';
 
 // Nastavení — klávesové zkratky, boti a god mode
 export default function Settings() {
@@ -11,6 +13,8 @@ export default function Settings() {
   const [listeningFor, setListeningFor] = useState(null);
   const [saved, setSaved] = useState(false);
   const [gameSettings, setGameSettings] = useState(DEFAULT_GAME_SETTINGS);
+  const [quality, setQuality] = useState(getQualitySetting());
+  const [soundOn, setSoundOn] = useState(!getMuted());
 
   useEffect(() => {
     setBindingsDraft({ ...getBindings() });
@@ -117,6 +121,66 @@ export default function Settings() {
 
         <div className="pt-4 pb-2">
           <h2 className="text-sm font-bold text-white/80">🎮 Nastavení hry</h2>
+        </div>
+
+        {/* Kvalita grafiky */}
+        <div className="rounded-lg px-4 py-3" style={{ background: 'rgba(255,255,255,0.05)' }}>
+          <div className="flex items-center justify-between mb-2">
+            <div>
+              <div className="text-sm font-bold">Kvalita grafiky</div>
+              <div className="text-xs text-white/40">
+                Vysoká = bloom, vinětace a měkké stíny (projeví se v příští hře)
+              </div>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            {[
+              ['auto', 'Auto'],
+              ['high', 'Vysoká'],
+              ['low', 'Nízká'],
+            ].map(([value, label]) => (
+              <button
+                key={value}
+                onClick={() => {
+                  setQualitySetting(value);
+                  setQuality(value);
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold border ${
+                  quality === value ? 'border-green-500 text-white' : 'border-white/15 text-white/50'
+                }`}
+                style={{
+                  background: quality === value ? 'rgba(22,163,74,0.3)' : 'rgba(255,255,255,0.05)',
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Zvuk */}
+        <div
+          className="flex items-center justify-between rounded-lg px-4 py-3"
+          style={{ background: 'rgba(255,255,255,0.05)' }}
+        >
+          <div>
+            <div className="text-sm font-bold">Zvuky</div>
+            <div className="text-xs text-white/40">Retro SFX a syntezátorový ambient</div>
+          </div>
+          <button
+            onClick={() => {
+              const next = !soundOn;
+              setSoundOn(next);
+              setMuted(!next);
+            }}
+            className="relative w-12 h-6 rounded-full transition-all"
+            style={{ background: soundOn ? '#22c55e' : 'rgba(255,255,255,0.2)' }}
+          >
+            <div
+              className="absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all"
+              style={{ left: soundOn ? '26px' : '2px' }}
+            />
+          </button>
         </div>
 
         {/* God mode */}

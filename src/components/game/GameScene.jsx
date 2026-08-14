@@ -2,34 +2,55 @@ import React, { useEffect } from 'react';
 import { useThree } from '@react-three/fiber';
 import { Sky } from '@react-three/drei';
 import { bus } from '@/game/events.js';
-import { resetGameState } from '@/game/state.js';
+import { gameState, resetGameState } from '@/game/state.js';
+import { createModeState } from '@/game/modes.js';
+import { getActiveMode, getActiveSession } from '@/game/lobby.js';
+import { initAudio, startAmbient } from '@/game/audio.js';
 import CityMap from '@/components/game/CityMap.jsx';
 import Player from '@/components/game/Player.jsx';
 import Bots from '@/components/game/Bots.jsx';
+import RemotePlayers from '@/components/game/RemotePlayers.jsx';
 import Projectiles from '@/components/game/Projectiles.jsx';
 import Pickups from '@/components/game/Pickups.jsx';
 import Particles from '@/components/game/Particles.jsx';
 import HitEffects from '@/components/game/HitEffects.jsx';
 import FPWeapon from '@/components/game/FPWeapon.jsx';
 import Ambience from '@/components/game/Ambience.jsx';
+import ModeSystems from '@/components/game/ModeSystems.jsx';
 
-// Kompozice 3D scény: obloha, osvětlení (slunce + výplňová světla)
-// a všechny herní subsystémy.
+// Kompozice 3D scény: obloha, osvětlení a všechny herní subsystémy.
+// V multiplayeru nahrazují boty vzdálení hráči.
 export default function GameScene() {
+  const session = getActiveSession();
+
+  // Stav herního módu musí existovat dřív, než se mountnou Bots (render-phase init)
+  if (!gameState.mode) {
+    gameState.mode = createModeState(session ? 'dm' : getActiveMode().id);
+    gameState.pendingModeId = null;
+  }
+
   // Dev-only: zpřístupnění R3F stavu pro ladění (ruční advance ve skrytém tabu)
   const getThreeState = useThree((state) => state.get);
   useEffect(() => {
     if (import.meta.env.DEV) window.__r3fGet = getThreeState;
   }, [getThreeState]);
 
-  // Restart hry resetuje sdílený herní stav
+  // Zvuk: inicializace bus listenerů + ambient (AudioContext se odemkne prvním gestem)
+  useEffect(() => {
+    initAudio();
+    startAmbient();
+  }, []);
+
+  // Restart hry resetuje sdílený herní stav + vytvoří čerstvý stav módu
   useEffect(() => {
     const handleRestart = () => {
       resetGameState();
+      gameState.mode = createModeState(session ? 'dm' : getActiveMode().id);
+      gameState.pendingModeId = null;
     };
     bus.on('restart-game', handleRestart);
     return () => bus.off('restart-game', handleRestart);
-  }, []);
+  }, [session]);
 
   return (
     <>
@@ -57,7 +78,8 @@ export default function GameScene() {
       <Particles />
       <HitEffects />
       <CityMap />
-      <Bots />
+      {session ? <RemotePlayers session={session} /> : <Bots />}
+      <ModeSystems />
       <Pickups />
       <Projectiles />
       <Player />

@@ -96,6 +96,61 @@ Produkční build: `npm run build`, náhled: `npm run preview`.
 - **Výhra**: první na 40 bodů; smrt = respawn po 5 s.
 - Výsledky zápasů se ukládají do Base44 entity `MatchResult` (žebříček).
 
+## Herní rozšíření (nad rámec originálu)
+
+- **Zvuk** ([src/game/audio.js](src/game/audio.js)) — čistě procedurální Web Audio:
+  výstřely podle typu zbraně, zásahy/krity, smrt, respawn, schopnosti, kroky,
+  fanfára výhry a syntezátorový ambient. Vypínač v Nastavení.
+- **Tři mapy** ([src/data/maps/](src/data/maps)) — Praha (kašna + pomník),
+  Brno (morový sloup, hustší uličky, stánky), Ostrava (těžní věž, kontejnery,
+  industriální paleta). Výběr v lobby na úvodní obrazovce.
+- **Herní módy** ([src/game/modes.js](src/game/modes.js) +
+  [ModeSystems.jsx](src/components/game/ModeSystems.jsx)) — Deathmatch (40 bodů),
+  Týmový DM (modří s parťáky proti červeným, 30 bodů), Ukořistit vlajku
+  (3 zanesení), Král náměstí (držení zóny 45 s). Obrazovka konce zápasu
+  s výsledky.
+- **Chytřejší AI** ([src/game/ai.js](src/game/ai.js)) — steering s vyhýbáním
+  překážkám, kryty a „obvazování" při nízkém zdraví, výběr zbraně podle
+  vzdálenosti (bližák/brokovnice/dálka), používání schopností postav
+  a souboje bot-vs-bot v týmových módech.
+- **Ragdoll** — mrtvý bot se přepne na dynamické Rapier těleso a fyzikálně
+  se skácí (impulz + rotace), po respawnu zpět na kinematické.
+- **Postprocessing a výkon** — bloom + vinětace (jen ve vysoké kvalitě),
+  přepínač kvality Auto/Vysoká/Nízká v Nastavení, adaptivní DPR podle FPS.
+- **3D náhled postavy** — rotující model v detail panelu výběru postavy.
+- **Statistiky** — žebříček má záložky Dnes / Síň slávy (Chaos rating
+  `1000 + 2×skóre + 3×killy − 2×smrti`, série výher) / Vývoj (SVG graf).
+
+## Multiplayer
+
+Online hra běží přes Base44 realtime subscriptions (WebSocket) — lobby
+s místnostmi je pod tlačítkem „🌐 Online hra". Pozice se synchronizují ~4×/s
+(interpolované), poškození si autoritativně aplikuje zasažený klient
+(trust-the-victim přes `HitEvent`).
+
+**Backend vyžaduje tři entity** — přidej je v Base44 dashboardu (Data → Add
+entity), jinak lobby zobrazí upozornění a hra zůstane u botů:
+
+```jsonc
+// Room — místnost
+{ "name": "string", "map_id": "string", "mode_id": "string",
+  "status": "string", "host_key": "string" }
+
+// PlayerState — stav hráče v místnosti
+{ "room_id": "string", "player_key": "string", "nickname": "string",
+  "character_id": "string", "x": "number", "y": "number", "z": "number",
+  "yaw": "number", "health": "number", "kills": "number", "deaths": "number",
+  "alive": "boolean", "last_seen": "string" }
+
+// HitEvent — hlášení zásahu
+{ "room_id": "string", "target_key": "string", "shooter_key": "string",
+  "shooter_name": "string", "damage": "number", "crit": "boolean" }
+```
+
+Transport: [src/multiplayer/transport.js](src/multiplayer/transport.js),
+vykreslování protihráčů: [RemotePlayers.jsx](src/components/game/RemotePlayers.jsx).
+Online hra zatím podporuje mód Deathmatch.
+
 ## Vizuální upgrade (nad rámec originálu)
 
 Původní hra zobrazovala boty jako ploché billboard sprity s portrétem. Upgrade přidává:

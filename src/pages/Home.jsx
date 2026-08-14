@@ -3,10 +3,21 @@ import { useNavigate } from 'react-router-dom';
 import { auth } from '@/api/base44Client.js';
 import { CHARACTERS } from '@/data/characters.js';
 import { CATEGORY_LABELS, CATEGORY_COLORS } from '@/data/categories.js';
-import { setSelectedCharacter } from '@/game/state.js';
+import { MAPS } from '@/data/maps/index.js';
+import { MODES } from '@/game/modes.js';
+import { setSelectedCharacter, gameState } from '@/game/state.js';
 import { loadKeybindings } from '@/game/keybindings.js';
 import { loadGameSettings } from '@/game/settings.js';
+import {
+  getSelectedMapId,
+  setSelectedMapId,
+  getSelectedModeId,
+  setSelectedModeId,
+  setActiveSession,
+} from '@/game/lobby.js';
+import { probeMultiplayer, listRooms, createRoom, joinRoom } from '@/multiplayer/transport.js';
 import OrientationWarning from '@/components/game/OrientationWarning.jsx';
+import CharacterPreview from '@/components/CharacterPreview.jsx';
 
 // Ukazatel jedné statistiky postavy (HP / SPD / DMG)
 function StatBar({ label, value, max, color }) {
@@ -30,12 +41,78 @@ export default function Home() {
   const [selectedChar, setSelectedChar] = useState(null);
   const [category, setCategory] = useState('all');
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [mapId, setMapId] = useState(getSelectedMapId());
+  const [modeId, setModeId] = useState(getSelectedModeId());
+  const [showOnline, setShowOnline] = useState(false);
+  const [mpStatus, setMpStatus] = useState(null); // null = nezjištěno, {available, reason}
+  const [rooms, setRooms] = useState([]);
+  const [roomName, setRoomName] = useState('');
+  const [mpBusy, setMpBusy] = useState(false);
 
   useEffect(() => {
     // zkratky z profilu uživatele + herní nastavení z úložiště
     loadKeybindings();
     loadGameSettings();
+    // single player výchozí — session se nastavuje až připojením do místnosti
+    setActiveSession(null);
+    gameState.remotePlayers = [];
+    gameState.mode = null;
   }, []);
+
+  const pickMap = (id) => {
+    setMapId(id);
+    setSelectedMapId(id);
+  };
+
+  const pickMode = (id) => {
+    setModeId(id);
+    setSelectedModeId(id);
+  };
+
+  // Otevření online panelu: ověř podporu backendu a načti místnosti
+  const openOnline = async () => {
+    setShowOnline(true);
+    if (mpStatus?.available) {
+      refreshRooms();
+      return;
+    }
+    const status = await probeMultiplayer();
+    setMpStatus(status);
+    if (status.available) refreshRooms();
+  };
+
+  const refreshRooms = async () => {
+    try {
+      setRooms(await listRooms());
+    } catch {
+      setRooms([]);
+    }
+  };
+
+  const handleCreateRoom = async () => {
+    if (!selectedChar || mpBusy) return;
+    setMpBusy(true);
+    try {
+      setSelectedCharacter(selectedChar);
+      await createRoom(roomName || `Náměstí ${selectedChar.nickname}`, mapId);
+      navigate('/play');
+    } catch {
+      setMpBusy(false);
+    }
+  };
+
+  const handleJoinRoom = async (room) => {
+    if (!selectedChar || mpBusy) return;
+    setMpBusy(true);
+    try {
+      setSelectedCharacter(selectedChar);
+      setSelectedMapId(room.map_id || 'praha');
+      await joinRoom(room);
+      navigate('/play');
+    } catch {
+      setMpBusy(false);
+    }
+  };
 
   const filteredCharacters = useMemo(
     () => (category === 'all' ? CHARACTERS : CHARACTERS.filter((ch) => ch.cat === category)),
@@ -137,6 +214,63 @@ export default function Home() {
         })}
       </div>
 
+      {/* Lobby — výběr mapy, módu a online hra */}
+      <div
+        className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2 text-xs"
+        style={{ background: 'rgba(0,0,0,0.25)' }}
+      >
+        <div className="flex items-center gap-1.5">
+          <span className="text-white/40 font-bold uppercase tracking-wide text-[10px]">Mapa</span>
+          {MAPS.map((map) => (
+            <button
+              key={map.id}
+              onClick={() => pickMap(map.id)}
+              title={map.desc}
+              className={`px-2.5 py-1 rounded-full font-bold whitespace-nowrap border transition-all ${
+                mapId === map.id ? 'text-white' : 'text-white/50 border-transparent'
+              }`}
+              style={{
+                background: mapId === map.id ? map.palette.sky + '50' : 'rgba(255,255,255,0.05)',
+                borderColor: mapId === map.id ? map.palette.sky : 'transparent',
+              }}
+            >
+              <span
+                className="inline-block w-2 h-2 rounded-full mr-1"
+                style={{ background: map.palette.buildingA }}
+              />
+              {map.name.split(' — ')[0]}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="text-white/40 font-bold uppercase tracking-wide text-[10px]">Mód</span>
+          {MODES.map((mode) => (
+            <button
+              key={mode.id}
+              onClick={() => pickMode(mode.id)}
+              title={mode.desc}
+              className={`px-2.5 py-1 rounded-full font-bold whitespace-nowrap border transition-all ${
+                modeId === mode.id
+                  ? 'text-white border-green-500'
+                  : 'text-white/50 border-transparent'
+              }`}
+              style={{
+                background: modeId === mode.id ? 'rgba(22,163,74,0.3)' : 'rgba(255,255,255,0.05)',
+              }}
+            >
+              {mode.icon} {mode.name}
+            </button>
+          ))}
+        </div>
+        <button
+          onClick={openOnline}
+          className="px-2.5 py-1 rounded-full font-bold border border-blue-400/40 text-blue-300 hover:bg-blue-500/10"
+          style={{ background: 'rgba(255,255,255,0.05)' }}
+        >
+          🌐 Online hra
+        </button>
+      </div>
+
       {/* Mřížka postav */}
       <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-2 p-3">
         {filteredCharacters.map((ch) => {
@@ -203,20 +337,12 @@ export default function Home() {
           style={{ background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)' }}
         >
           <div className="flex items-center gap-4 max-w-4xl mx-auto">
+            {/* Rotující 3D model postavy */}
             <div
-              className="w-16 h-20 rounded-lg overflow-hidden flex-shrink-0"
-              style={{ background: `linear-gradient(180deg, ${selectedChar.color}40, ${selectedChar.color}80)` }}
+              className="w-24 h-28 rounded-lg overflow-hidden flex-shrink-0"
+              style={{ background: `linear-gradient(180deg, ${selectedChar.color}25, ${selectedChar.color}55)` }}
             >
-              {selectedChar.portrait ? (
-                <img
-                  src={selectedChar.portrait}
-                  alt={selectedChar.name}
-                  className="w-full h-full object-contain"
-                  style={{ imageRendering: 'pixelated' }}
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-2xl">🎭</div>
-              )}
+              <CharacterPreview key={selectedChar.id} character={selectedChar} />
             </div>
             <div className="flex-1 min-w-0">
               <h3 className="text-lg font-bold" style={{ color: selectedChar.color }}>
@@ -246,6 +372,104 @@ export default function Home() {
               <StatBar label="SPD" value={selectedChar.stats.speed} max={8} color="#3498db" />
               <StatBar label="DMG" value={selectedChar.stats.dmgMult} max={1.3} color="#f39c12" />
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Online hra — místnosti */}
+      {showOnline && (
+        <div
+          className="fixed inset-0 z-[90] grid place-items-center"
+          style={{ background: 'rgba(0,0,0,0.8)' }}
+          onClick={() => setShowOnline(false)}
+        >
+          <div
+            className="bg-zinc-900 rounded-xl p-5 w-full max-w-md mx-4 text-white"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-lg font-bold">🌐 Online hra</h2>
+              <button onClick={() => setShowOnline(false)} className="text-white/40 hover:text-white">
+                ✕
+              </button>
+            </div>
+
+            {mpStatus === null && <p className="text-sm text-white/50">Zjišťuji podporu backendu…</p>}
+
+            {mpStatus && !mpStatus.available && (
+              <div className="text-sm text-white/70 space-y-2">
+                <p>⚠️ {mpStatus.reason}</p>
+                <p className="text-white/40 text-xs">
+                  Multiplayer potřebuje entity <b>Room</b>, <b>PlayerState</b> a <b>HitEvent</b> — jejich
+                  JSON schéma najdeš v README projektu. Po přidání v Base44 dashboardu bude online hra
+                  fungovat okamžitě.
+                </p>
+              </div>
+            )}
+
+            {mpStatus?.available && (
+              <>
+                {!selectedChar && (
+                  <p className="text-xs text-yellow-400/80 mb-2">Nejdřív si vyber postavu.</p>
+                )}
+                <div className="flex gap-2 mb-4">
+                  <input
+                    value={roomName}
+                    onChange={(event) => setRoomName(event.target.value)}
+                    placeholder="Název místnosti"
+                    className="flex-1 px-3 py-2 rounded-lg text-sm text-white placeholder-white/30 border border-white/15 outline-none focus:border-white/40"
+                    style={{ background: 'rgba(255,255,255,0.06)' }}
+                  />
+                  <button
+                    onClick={handleCreateRoom}
+                    disabled={!selectedChar || mpBusy}
+                    className={`px-4 py-2 rounded-lg text-sm font-bold ${selectedChar && !mpBusy ? '' : 'opacity-40 cursor-not-allowed'}`}
+                    style={{ background: '#16a34a' }}
+                  >
+                    {mpBusy ? '…' : 'Vytvořit'}
+                  </button>
+                </div>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="text-xs text-white/40 font-bold uppercase tracking-wide">
+                    Otevřené místnosti
+                  </div>
+                  <button onClick={refreshRooms} className="text-xs text-white/40 hover:text-white">
+                    ↻ Obnovit
+                  </button>
+                </div>
+                <div className="space-y-1.5 max-h-56 overflow-y-auto">
+                  {rooms.length === 0 && (
+                    <p className="text-sm text-white/40">Žádná otevřená místnost. Založ první!</p>
+                  )}
+                  {rooms.map((room) => (
+                    <div
+                      key={room.id}
+                      className="flex items-center justify-between px-3 py-2 rounded-lg"
+                      style={{ background: 'rgba(255,255,255,0.05)' }}
+                    >
+                      <div className="min-w-0">
+                        <div className="text-sm font-bold truncate">{room.name}</div>
+                        <div className="text-[10px] text-white/40">
+                          {MAPS.find((m) => m.id === room.map_id)?.name || room.map_id} • Deathmatch
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleJoinRoom(room)}
+                        disabled={!selectedChar || mpBusy}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold flex-shrink-0 ${selectedChar && !mpBusy ? '' : 'opacity-40 cursor-not-allowed'}`}
+                        style={{ background: '#2563eb' }}
+                      >
+                        Připojit
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-[10px] text-white/30 mt-3">
+                  Pozice se synchronizují ~4× za sekundu přes Base44 realtime — počítej s mírnou
+                  latencí. Online hra běží v módu Deathmatch.
+                </p>
+              </>
+            )}
           </div>
         </div>
       )}
