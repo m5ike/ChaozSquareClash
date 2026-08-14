@@ -2,6 +2,7 @@ import { useRef, useMemo, useState } from 'react';
 import { CanvasTexture, NearestFilter } from 'three';
 import { useThree, useFrame } from '@react-three/fiber';
 import { gameState } from '@/game/state.js';
+import { playGestureOnAnim } from '@/game/gestures.js';
 import CharacterModel from '@/components/game/CharacterModel.jsx';
 
 // Jmenovka hráče jako canvas textura (cache podle textu)
@@ -46,6 +47,10 @@ function RemotePlayer({ peer }) {
     const moved = group.position.distanceTo(before) / Math.max(delta, 0.001);
     anim.current.speed = Math.min(1, moved / 3);
     anim.current.dead = !peer.alive;
+    if (peer.pendingGesture) {
+      playGestureOnAnim(anim.current, peer.pendingGesture);
+      peer.pendingGesture = null;
+    }
     // plynulé dotočení modelu
     if (yawRef.current) {
       let diff = peer.targetYaw - yawRef.current.rotation.y;

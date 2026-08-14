@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { getFaceTexture } from '@/game/faces.js';
+import { getFaceTexture, getExpressionTexture } from '@/game/faces.js';
 import { getProtection } from '@/game/hitZones.js';
 import WeaponModel from '@/components/game/WeaponModel.jsx';
 
@@ -38,6 +38,9 @@ export default function CharacterModel({ character, animRef, team = null, outfit
   const armRRef = useRef();
   const legLRef = useRef();
   const legRRef = useRef();
+  const fingerRef = useRef(); // prostředníček (gesto fuck off)
+  const thumbRef = useRef(); // palec (thumb-up)
+  const faceMatRef = useRef(); // materiál obličeje (mimika)
   const walkPhase = useRef(Math.random() * Math.PI * 2);
   const materialsRef = useRef([]);
 
@@ -94,6 +97,66 @@ export default function CharacterModel({ character, animRef, team = null, outfit
         } else {
           armRRef.current.rotation.x = swing * 0.7;
         }
+      }
+
+      // Animace výměny zbraně — krátké máchnutí paží dolů
+      if (anim.weaponSwap > 0) {
+        anim.weaponSwap -= delta;
+        if (armRRef.current) armRRef.current.rotation.x = 0.9 * Math.sin((anim.weaponSwap / 0.4) * Math.PI);
+      }
+
+      // --- Tělesná gesta (přepisují pózu končetin/akrobacie) ---
+      const gesture = anim.gesture;
+      if (gesture) {
+        gesture.t += delta;
+        const progress = Math.min(1, gesture.t / gesture.duration);
+        if (gesture.id === 'wave' && armRRef.current) {
+          armRRef.current.rotation.x = -2.7;
+          armRRef.current.rotation.z = Math.sin(gesture.t * 10) * 0.35;
+        } else if (gesture.id === 'fuckoff' && armRRef.current) {
+          armRRef.current.rotation.x = -1.55;
+          armRRef.current.rotation.z = 0;
+        } else if (gesture.id === 'thumbup' && armRRef.current) {
+          armRRef.current.rotation.x = -1.2;
+        } else if (gesture.id === 'flip' || gesture.id === 'salto') {
+          // přemet vpřed / salto vzad — celá postava se otočí kolem osy X s výskokem
+          const dir = gesture.id === 'flip' ? 1 : -1;
+          root.rotation.x = dir * progress * Math.PI * 2;
+          root.position.y = Math.sin(progress * Math.PI) * 0.55;
+        } else if (gesture.id === 'drep') {
+          const k = Math.sin(progress * Math.PI);
+          root.position.y = -0.3 * k;
+          if (legLRef.current) legLRef.current.rotation.x = 1.5 * k;
+          if (legRRef.current) legRRef.current.rotation.x = 1.5 * k;
+        } else if (gesture.id === 'plazeni') {
+          root.rotation.x = -1.35;
+          root.position.y = -0.32;
+          const crawl = Math.sin(gesture.t * 8) * 0.5;
+          if (armLRef.current) armLRef.current.rotation.x = -2.4 + crawl * 0.4;
+          if (armRRef.current) armRRef.current.rotation.x = -2.4 - crawl * 0.4;
+          if (legLRef.current) legLRef.current.rotation.x = crawl;
+          if (legRRef.current) legRRef.current.rotation.x = -crawl;
+        }
+        if (gesture.t >= gesture.duration) anim.gesture = null;
+      }
+      if (fingerRef.current) fingerRef.current.visible = gesture?.id === 'fuckoff';
+      if (thumbRef.current) thumbRef.current.visible = gesture?.id === 'thumbup';
+    }
+
+    // --- Mimika: dočasná výměna textury obličeje ---
+    if (faceMatRef.current) {
+      const expression = anim.expression;
+      if (expression) {
+        expression.t += delta;
+        const tex = getExpressionTexture(character, expression.id);
+        if (tex && faceMatRef.current.map !== tex) {
+          faceMatRef.current.map = tex;
+          faceMatRef.current.needsUpdate = true;
+        }
+        if (expression.t >= expression.duration) anim.expression = null;
+      } else if (faceTexture && faceMatRef.current.map !== faceTexture) {
+        faceMatRef.current.map = faceTexture;
+        faceMatRef.current.needsUpdate = true;
       }
     }
 
@@ -171,6 +234,15 @@ export default function CharacterModel({ character, animRef, team = null, outfit
           <boxGeometry args={[0.12, 0.12, 0.12]} />
           <meshStandardMaterial color={SKIN} />
         </mesh>
+        {/* prostředníček / palec — viditelné jen během gesta */}
+        <mesh ref={fingerRef} position={[0, -0.6, 0]} visible={false}>
+          <boxGeometry args={[0.035, 0.12, 0.035]} />
+          <meshStandardMaterial color={SKIN} />
+        </mesh>
+        <mesh ref={thumbRef} position={[-0.08, -0.5, 0]} rotation={[0, 0, 0.5]} visible={false}>
+          <boxGeometry args={[0.04, 0.11, 0.04]} />
+          <meshStandardMaterial color={SKIN} />
+        </mesh>
         {/* Zbraň postavy v pravé ruce */}
         {weapon && (
           <group position={[0.02, -0.5, 0.12]} rotation={[Math.PI / 2, 0, 0]} scale={0.85}>
@@ -186,7 +258,7 @@ export default function CharacterModel({ character, animRef, team = null, outfit
         <meshStandardMaterial attach="material-1" color={SKIN} />
         <meshStandardMaterial attach="material-2" color="#2a1e16" />
         <meshStandardMaterial attach="material-3" color={SKIN} />
-        <meshStandardMaterial attach="material-4" map={faceTexture} color="#ffffff" />
+        <meshStandardMaterial ref={faceMatRef} attach="material-4" map={faceTexture} color="#ffffff" />
         <meshStandardMaterial attach="material-5" color="#2a1e16" />
       </mesh>
 

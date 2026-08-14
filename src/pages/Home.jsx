@@ -18,6 +18,7 @@ import {
 import { probeMultiplayer, listRooms, createRoom, joinRoom } from '@/multiplayer/transport.js';
 import OrientationWarning from '@/components/game/OrientationWarning.jsx';
 import CharacterPreview from '@/components/CharacterPreview.jsx';
+import { getCaricatureDataUrl } from '@/game/caricatures.js';
 
 // Ukazatel jedné statistiky postavy (HP / SPD / DMG)
 function StatBar({ label, value, max, color }) {
@@ -289,23 +290,12 @@ export default function Home() {
                 className="aspect-[3/4] flex items-end justify-center overflow-hidden"
                 style={{ background: `linear-gradient(180deg, ${ch.color}30 0%, ${ch.color}60 100%)` }}
               >
-                {ch.portrait ? (
-                  <img
-                    src={ch.portrait}
-                    alt={ch.name}
-                    className="w-full h-full object-contain"
-                    style={{ imageRendering: 'pixelated' }}
-                  />
-                ) : (
-                  <div className="w-full h-full flex flex-col items-center justify-center text-center p-2">
-                    <div className="text-3xl mb-1" style={{ filter: 'grayscale(0.3)' }}>
-                      🎭
-                    </div>
-                    <div className="text-xs font-bold" style={{ color: ch.color }}>
-                      {ch.nickname}
-                    </div>
-                  </div>
-                )}
+                <img
+                  src={ch.portrait || getCaricatureDataUrl(ch) || ''}
+                  alt={ch.name}
+                  className="w-full h-full object-contain"
+                  style={{ imageRendering: 'pixelated' }}
+                />
               </div>
               <div className="px-1 py-1" style={{ background: 'rgba(0,0,0,0.6)' }}>
                 <div className="text-xs font-bold truncate">{ch.name}</div>

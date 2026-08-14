@@ -12,6 +12,7 @@ import {
   randomHitZone,
 } from '@/game/hitZones.js';
 import { getSelectedCharacter } from '@/game/state.js';
+import { playerEffects } from '@/game/rewards.js';
 
 // Pool projektilů (hráč i boti): recyklované meshe, ruční pohyb a kolize
 // koulí, zásahové zóny podle výšky dopadu, damage a skóre.
@@ -151,7 +152,11 @@ export default function Projectiles() {
             const facingYaw = enemy.facingYaw ?? 0;
             const frontal =
               proj.dx * Math.sin(facingYaw) + proj.dz * Math.cos(facingYaw) < -0.2;
-            const zone = resolveHitZone(heightRatio, lateral, frontal);
+            let zone = resolveHitZone(heightRatio, lateral, frontal);
+            // precise shot: každý hráčův zásah je headshot do obličeje
+            if (proj.owner === 'player' && playerEffects.preciseTimer > 0) {
+              zone = { name: 'obličej', min: 1, max: 1, protectedBy: 'helmet', headshot: true };
+            }
             const hit = computeHitDamage(
               proj.damage,
               zone,
@@ -226,6 +231,24 @@ export default function Projectiles() {
           }
         }
         if (consumed) continue;
+        // Kolize s assety živého města (stromy, auta, chodci…)
+        if (gameState.worldAssets?.length && gameState.damageAsset) {
+          for (const asset of gameState.worldAssets) {
+            if (!asset.alive) continue;
+            const size = asset.def.size || { w: 1, h: 1, d: 1 };
+            const radius = Math.max(size.w, size.d) / 2 + 0.25;
+            const ax = proj.x - asset.x;
+            const ay = proj.y - size.h / 2;
+            const az = proj.z - asset.z;
+            if (ax * ax + az * az < radius * radius && Math.abs(ay) < size.h / 2 + 0.4) {
+              gameState.damageAsset(asset, proj.damage, proj.owner === 'player');
+              deactivate(i);
+              consumed = true;
+              break;
+            }
+          }
+        }
+        if (consumed) continue;
       }
       if (
         proj.owner === 'enemy' &&
@@ -246,12 +269,12 @@ export default function Projectiles() {
             Math.min(1, (proj.y - (gameState.playerPos.y - 0.7)) / playerHeight)
           );
           const zone = resolveHitZone(heightRatio, Math.sqrt(dx * dx + dz * dz), Math.random() < 0.6);
-          const hit = computeHitDamage(
-            proj.damage,
-            zone,
-            getProtection(getSelectedCharacter()),
-            proj.armorPen
+          const protection = getProtection(getSelectedCharacter());
+          protection.armorProtect = Math.min(
+            0.9,
+            protection.armorProtect + (playerEffects.bonusArmor || 0)
           );
+          const hit = computeHitDamage(proj.damage, zone, protection, proj.armorPen);
           gameState.playerHealth -= hit.damage;
           bus.emit('health-changed', gameState.playerHealth);
           if (gameState.playerHealth <= 0) {

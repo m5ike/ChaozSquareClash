@@ -13,6 +13,7 @@ import { BOT, RESPAWN_SECONDS } from '@/game/constants.js';
 import { randomZone, computeHitDamage, getProtection } from '@/game/hitZones.js';
 import { buildObstacleGrid, computeSteering, findCoverSpot, chooseWeaponIndex } from '@/game/ai.js';
 import { getActiveMap } from '@/game/lobby.js';
+import { randomGesture, playGestureOnAnim } from '@/game/gestures.js';
 import CharacterModel from '@/components/game/CharacterModel.jsx';
 
 // Rapier typy těles (číselné enum hodnoty RigidBodyType)
@@ -83,6 +84,8 @@ export default function Bots() {
         damageBoostTimer: 0,
         // ragdoll
         ragdolled: false,
+        emoteTimer: 10 + Math.random() * 25,
+        lastWeaponIndex: -1,
       };
       animsRef.current[i] = {
         speed: 0,
@@ -343,6 +346,9 @@ export default function Bots() {
       gameState.deaths++;
       if (gameState.botScores[enemy.id]) gameState.botScores[enemy.id].kills++;
       if (gameState.mode?.id === 'tdm') gameState.mode.teamScores.red++;
+      const taunt = ['thumbup', 'amlaugh', 'wave', 'laugh'][(Math.random() * 4) | 0];
+      const anim = animsRef.current[enemy.id];
+      if (anim) playGestureOnAnim(anim, taunt);
       bus.emit('player-died', { killer: enemy.character?.name });
     }
   }
@@ -394,6 +400,13 @@ export default function Bots() {
           if (barFill) barFill.visible = true;
         }
         continue;
+      }
+
+      // Náhodné emoty — gesta a mimika jednou za čas
+      enemy.emoteTimer -= delta;
+      if (enemy.emoteTimer <= 0) {
+        enemy.emoteTimer = 15 + Math.random() * 25;
+        if (anim && !anim.gesture) playGestureOnAnim(anim.current ?? anim, randomGesture().id);
       }
 
       // Časovače efektů bota
@@ -467,8 +480,12 @@ export default function Bots() {
         continue;
       }
 
-      // Výběr zbraně podle vzdálenosti
+      // Výběr zbraně podle vzdálenosti (+ animace výměny)
       const weaponIndex = chooseWeaponIndex(dist);
+      if (weaponIndex !== enemy.lastWeaponIndex) {
+        enemy.lastWeaponIndex = weaponIndex;
+        if (anim) anim.weaponSwap = 0.4;
+      }
       const weapon = enemy.loadout[weaponIndex];
       const dmgMult =
         (enemy.character?.stats.dmgMult || 1) * (enemy.damageBoostTimer > 0 ? 2 : 1);

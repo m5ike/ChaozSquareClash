@@ -103,6 +103,44 @@ const LAMPS = [
   [9, 9],
 ];
 
+// Povrchy — silniční okruh, chodníky u fasád, tramvajový úsek a pěšiny.
+// Pásy jsou volené tak, aby nekolidovaly s OBSTACLES, stromy, lavičkami ani
+// lampami a nechávaly volný střed (r 3 kolem [0,0] a kašny [0,6]).
+const SURFACES = {
+  // Okružní silnice šířky 3 — sever/jih na z=±10.75, boky na x=±13
+  // (boční pásy posunuté ven kvůli stromům na x=±10).
+  roads: [
+    { x: 0, z: -10.75, w: 29, d: 3 },
+    { x: 0, z: 10.75, w: 29, d: 3 },
+    { x: -13, z: 0, w: 3, d: 18.5 },
+    { x: 13, z: 0, w: 3, d: 18.5 },
+  ],
+  // Chodníky šířky 1.5 mezi okruhem a budovami (u severní/jižní řady
+  // zajíždějí pod fasády a vykukují v prolukách).
+  sidewalks: [
+    { x: 0, z: -13, w: 29, d: 1.5 },
+    { x: 0, z: 13, w: 29, d: 1.5 },
+    { x: -15.25, z: 0, w: 1.5, d: 24.5 },
+    { x: 15.25, z: 0, w: 1.5, d: 24.5 },
+  ],
+  // Tramvajový úsek západ–východ; z≈-8 místo -6 kvůli bedně [8,-6]
+  // a zídce [-3,-5], konce před stromy na x=±10 (lavička [0,-7] = zastávka).
+  rails: [{ x: 0, z: -8, w: 19, d: 1.6 }],
+  // Pěšiny k centru — od východní silnice k pomníku a od severní k rails.
+  paths: [
+    { x: 7.25, z: 0, w: 8.5, d: 1.2 },
+    { x: 1.5, z: -6.55, w: 1.2, d: 5.4 },
+  ],
+  // Přechody: přes severní pás (navazuje na pěšinu) a přes východní pás.
+  crosswalks: [
+    { x: 1.5, z: -10.75, w: 2.4, d: 3, axis: 'z' },
+    { x: 13, z: 0, w: 3, d: 2.4, axis: 'x' },
+  ],
+};
+
+// Výchozí počty dekoračních assetů — turistické centrum: dost chodců, málo aut.
+const ASSET_DEFAULTS = { static: 10, vehicle: 4, pedestrian: 8, animal: 5 };
+
 export default {
   id: 'praha',
   name: 'Praha — Staroměstské náměstí',
@@ -117,4 +155,6 @@ export default {
   botSpawns: BOT_SPAWNS,
   pickupSpots: PICKUP_SPOTS,
   lamps: LAMPS,
+  surfaces: SURFACES,
+  assetDefaults: ASSET_DEFAULTS,
 };

@@ -17,6 +17,8 @@ import HitEffects from '@/components/game/HitEffects.jsx';
 import FPWeapon from '@/components/game/FPWeapon.jsx';
 import Ambience from '@/components/game/Ambience.jsx';
 import ModeSystems from '@/components/game/ModeSystems.jsx';
+import MapDetail from '@/components/game/MapDetail.jsx';
+import WorldAssets from '@/components/game/WorldAssets.jsx';
 
 // Kompozice 3D scény: obloha, osvětlení a všechny herní subsystémy.
 // V multiplayeru nahrazují boty vzdálení hráči.
@@ -78,6 +80,8 @@ export default function GameScene() {
       <Particles />
       <HitEffects />
       <CityMap />
+      <MapDetail />
+      <WorldAssets />
       {session ? <RemotePlayers session={session} /> : <Bots />}
       <ModeSystems />
       <Pickups />

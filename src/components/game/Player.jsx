@@ -17,6 +17,8 @@ import {
   SLASH_PRESS_WINDOW_MS,
   effectiveSpread,
 } from '@/game/weaponsConfig.js';
+import { playerEffects, tickPlayerEffects } from '@/game/rewards.js';
+import { BODY_GESTURES, FACE_GESTURES, randomGesture, getAutoGestureInterval } from '@/game/gestures.js';
 
 // First-person ovladač hráče: dynamická kapsle v Rapieru, kamera (yaw/pitch
 // z myši/dotyku/gyra přes input.look), pohyb, skok, střelba, schopnosti a respawn.
@@ -43,6 +45,8 @@ export default function Player() {
     trajIndex: 0,
     didDamage: true,
   });
+  const gestureCycleRef = useRef({ body: 0, face: 0 });
+  const autoGestureRef = useRef(getAutoGestureInterval());
   const character = getSelectedCharacter();
   const maxHealth = character?.stats.health || 100;
   const armorDefense = character?.armor?.defense || 1;
@@ -108,6 +112,33 @@ export default function Player() {
     const body = bodyRef.current;
     if (!body || !character) return;
     timeRef.current += delta;
+
+    // Časované efekty odměn/penalizací (damage boost, no aim, freeze…)
+    tickPlayerEffects(delta);
+
+    // Automatická gesta jednou za nastavený interval (0 = vypnuto)
+    const autoInterval = getAutoGestureInterval();
+    if (autoInterval > 0 && gameState.phase === 'playing') {
+      autoGestureRef.current -= delta;
+      if (autoGestureRef.current <= 0) {
+        autoGestureRef.current = autoInterval;
+        bus.emit('player-gesture', { id: randomGesture().id, auto: true });
+      }
+    }
+
+    // Gesta klávesou — cyklí seznamem
+    if (input.gesturePressed) {
+      input.gesturePressed = false;
+      const g = BODY_GESTURES[gestureCycleRef.current.body % BODY_GESTURES.length];
+      gestureCycleRef.current.body++;
+      bus.emit('player-gesture', { id: g.id });
+    }
+    if (input.faceGesturePressed) {
+      input.faceGesturePressed = false;
+      const g = FACE_GESTURES[gestureCycleRef.current.face % FACE_GESTURES.length];
+      gestureCycleRef.current.face++;
+      bus.emit('player-gesture', { id: g.id });
+    }
 
     // Otřes kamery při poklesu zdraví (zásah čímkoli)
     if (prevHealthRef.current === null) prevHealthRef.current = gameState.playerHealth;
@@ -272,7 +303,10 @@ export default function Player() {
     const rightZ = -Math.sin(yaw);
     const baseSpeed = character.stats.speed;
     const sprintSpeed = input.sprint || keys.sprint ? baseSpeed * 1.5 : baseSpeed;
-    const speed = gameState.playerSpeedBoost ? sprintSpeed * 1.8 : sprintSpeed;
+    // stance: dřep zpomalí a sníží, plazení ještě víc
+    const stance = keys.crawl ? 'crawl' : keys.crouch ? 'crouch' : 'stand';
+    const stanceMult = stance === 'crawl' ? 0.25 : stance === 'crouch' ? 0.5 : 1;
+    const speed = (gameState.playerSpeedBoost ? sprintSpeed * 1.8 : sprintSpeed) * stanceMult;
     const vel = body.linvel();
     const stunned = gameState.playerStunTimer > 0;
     const velX = stunned ? 0 : (strafe * rightX + forward * forwardX) * speed;
@@ -293,7 +327,8 @@ export default function Player() {
       return;
     }
 
-    camera.position.set(pos.x, pos.y + PLAYER.eyeHeight, pos.z);
+    const eyeHeight = stance === 'crawl' ? 0.08 : stance === 'crouch' ? 0.38 : PLAYER.eyeHeight;
+    camera.position.set(pos.x, pos.y + eyeHeight, pos.z);
     // otřes: tlumený kmit v pitchi a rollu
     const shakeStrength = shakeRef.current / 0.3;
     const shakePitch = Math.sin(timeRef.current * 45) * 0.035 * shakeStrength;
@@ -344,6 +379,12 @@ export default function Player() {
       ) {
         startReload(weaponIndex, weapon);
       }
+    }
+
+    // Penalizace „no gun" — nelze útočit
+    if (playerEffects.noGunTimer > 0) {
+      input.firePressed = false;
+      input.fire = false;
     }
 
     if (weapon.slash) {
@@ -410,9 +451,16 @@ export default function Player() {
           y: camera.position.y,
           z: camera.position.z,
         };
+        const special = playerEffects.specialWeaponUntil > 0;
         const damage =
-          weapon.damage * character.stats.dmgMult * (gameState.playerDamageBoost ? 2 : 1);
-        const spread = effectiveSpread(weapon);
+          weapon.damage *
+          character.stats.dmgMult *
+          (gameState.playerDamageBoost ? 2 : 1) *
+          playerEffects.damageMultValue *
+          (special ? 3 : 1);
+        // no aim: střely letí úplně mimo
+        const noAim = playerEffects.noAimTimer > 0;
+        const spread = effectiveSpread(weapon) + (noAim ? 0.6 : 0);
         if (weapon.type === 'spread') {
           // Brokovnice — svazek broků s rozptylem podle přesnosti
           for (let i = 0; i < (weapon.count || 5); i++) {
@@ -425,7 +473,7 @@ export default function Player() {
             gameState.fireProjectile?.(
               origin,
               { x: spreadDir.x / len, y: spreadDir.y / len, z: spreadDir.z / len },
-              { ...weapon, damage }
+              { ...weapon, damage, color: special ? '#ffd700' : weapon.color }
             );
           }
         } else {
@@ -439,10 +487,10 @@ export default function Player() {
           gameState.fireProjectile?.(
             origin,
             { x: devDir.x / len, y: devDir.y / len, z: devDir.z / len },
-            { ...weapon, damage }
+            { ...weapon, damage, color: special ? '#ffd700' : weapon.color }
           );
         }
-        if (weapon.magSize && ammo) {
+        if (weapon.magSize && ammo && !special) {
           ammo.mag--;
           emitAmmo();
           if (ammo.mag <= 0 && ammo.reserve > 0) startReload(weaponIndex, weapon);
@@ -463,8 +511,12 @@ export default function Player() {
   // trajektorie: bodnutí na hlavu → obličej/hlava, na tělo → srdce/tělo,
   // rozmach → pásmo tělo–hlava podle výšky průchodu čepele.
   function slashDamage(origin, dir, weapon, trajectory) {
+    if (playerEffects.noAimTimer > 0) return; // no aim — rány jdou vedle
     const damage =
-      weapon.damage * character.stats.dmgMult * (gameState.playerDamageBoost ? 2 : 1);
+      weapon.damage *
+      character.stats.dmgMult *
+      (gameState.playerDamageBoost ? 2 : 1) *
+      playerEffects.damageMultValue;
     for (let i = 0; i < gameState.enemies.length; i++) {
       const enemy = gameState.enemies[i];
       if (!enemy?.alive || !enemy.body) continue;

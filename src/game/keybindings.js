@@ -69,6 +69,30 @@ export const KEY_BINDING_DEFS = [
     default: ['KeyR'],
   },
   {
+    name: 'crouch',
+    label: 'Dřep',
+    desc: 'Přikrčení (pomalejší, nižší)',
+    default: ['KeyC'],
+  },
+  {
+    name: 'crawl',
+    label: 'Plazení',
+    desc: 'Plížení po zemi',
+    default: ['KeyX'],
+  },
+  {
+    name: 'gesture',
+    label: 'Gesto',
+    desc: 'Tělesné gesto (cyklí: mávnutí, fuck off, palec…)',
+    default: ['KeyG'],
+  },
+  {
+    name: 'gestureFace',
+    label: 'Mimika',
+    desc: 'Obličejové gesto (mrknutí, smích, řev…)',
+    default: ['KeyV'],
+  },
+  {
     name: 'scoreboard',
     label: 'Scoreboard',
     desc: 'Tabulka výsledků',
@@ -105,6 +129,8 @@ export function buildKeyboardMap() {
     { name: 'jump', keys: bindings.jump || [] },
     { name: 'sprint', keys: bindings.sprint || [] },
     { name: 'fire', keys: bindings.fire || [] },
+    { name: 'crouch', keys: bindings.crouch || [] },
+    { name: 'crawl', keys: bindings.crawl || [] },
   ];
 }
 

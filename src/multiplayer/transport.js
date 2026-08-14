@@ -132,6 +132,10 @@ function upsertPeer(session, record) {
     peer.deaths = record.deaths || 0;
     peer.alive = record.alive !== false;
     peer.lastEventAt = Date.now();
+    if (record.gesture_ts && record.gesture_ts !== peer.lastGestureTs) {
+      peer.lastGestureTs = record.gesture_ts;
+      peer.pendingGesture = record.gesture;
+    }
     if (wasAlive && !peer.alive) {
       bus.emit('mode-event', { text: `💀 ${peer.nickname} padl` });
     }
@@ -180,6 +184,14 @@ export function startSync(session) {
   });
   session._unsubs.push(unsubPlayers, unsubHits);
 
+  // 2a) gesta hráče → přibalí se k příštímu broadcastu stavu
+  let pendingGesture = null;
+  const onGesture = (info) => {
+    pendingGesture = { id: info.id, ts: Date.now() };
+  };
+  bus.on('player-gesture', onGesture);
+  session._listeners.push(['player-gesture', onGesture]);
+
   // 2) hlášení mých zásahů (Projectiles detekuje kolizi s peerem)
   const onRemoteHit = (info) => {
     base44.entities.HitEvent.create({
@@ -198,6 +210,7 @@ export function startSync(session) {
   // 3) pravidelný broadcast vlastního stavu + prořezání mrtvých peerů
   const syncTimer = setInterval(() => {
     base44.entities.PlayerState.update(session.myStateId, {
+      ...(pendingGesture ? { gesture: pendingGesture.id, gesture_ts: pendingGesture.ts } : {}),
       x: +gameState.playerPos.x.toFixed(2),
       y: +gameState.playerPos.y.toFixed(2),
       z: +gameState.playerPos.z.toFixed(2),

@@ -10,6 +10,8 @@ export const input = {
   firePressed: false,
   jumpPressed: false,
   reloadPressed: false,
+  gesturePressed: false,
+  faceGesturePressed: false,
   sprint: false,
   weaponSwitch: -1,
   powerPressed: false,

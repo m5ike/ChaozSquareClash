@@ -219,6 +219,58 @@ Nový skin přidáš položkou v příslušném poli v `skins.js` (u zbraní jde
 vlastnosti `{color, metalness, roughness, emissive}`, u těla o `outfit` barvy,
 u prostředí o transformaci palety v `applyEnvSkin`).
 
+## Karikatury, gesta a mimika
+
+- **Karikatury** ([src/game/caricatures.js](src/game/caricatures.js)): 15 postav bez
+  obrázku má procedurálně kreslené pixel-art karikatury (rysy podle známé podoby/role
+  osobnosti — brýle, kníry, doplňky). Používají se na kartách výběru, v detailu
+  i jako textura obličeje 3D modelu.
+- **Gesta a mimika** ([src/game/gestures.js](src/game/gestures.js)): tělesná gesta
+  (mávnutí*, fuck off, palec nahoru, přemet, salto, dřep, plazení) a mimika
+  (mrknutí, zamračení, smích, americký smích, řev, pláč). Spouští se:
+  - **automaticky** jednou za nastavený interval (Nastavení → Automatická gesta, 0 = vyp.),
+  - **klávesou**: `G` tělesné gesto, `V` mimika (cyklují seznamem),
+  - boti gestikulují sami a po zabití hráče se **posmívají**,
+  - v multiplayeru se gesta synchronizují ostatním hráčům.
+- **Pohyby hráče**: dřep `C` (nižší profil, poloviční rychlost), plazení `X`
+  (nejnižší, čtvrtinová rychlost); skok, běh a výměna zbraně s animací.
+
+\* Místo gesta „heil" je implementováno mávnutí — projevy sympatií k nacismu jsou
+v ČR trestné (§ 404 TZ) a u parodií skutečných osob nepřipadají v úvahu.
+
+## Živé město (assety)
+
+Katalog: [src/data/assetsCatalog.js](src/data/assetsCatalog.js), modely:
+[AssetModel.jsx](src/components/game/AssetModel.jsx), logika:
+[WorldAssets.jsx](src/components/game/WorldAssets.jsx).
+
+- **Statické**: stromy, keře, květiny, květináče, budky, stánky, billboardy, koše,
+  popelnice, schránky, zaparkovaná auta (sedan/hatchback/kombi/dodávka/veterán × barvy).
+- **Pohyblivé** s konfigurací: **podklad** (silnice / chodník / koleje / stezka /
+  kdekoli), **typ pohybu** (jízda, rychlá jízda, chůze, běh, tanec, opilecká chůze,
+  dřepy, kliky), **cesta** (náhodná, po jedné ose podkladu, po více osách podkladu,
+  kopíruj pohyb hráče, AI steering) — auta, autobus, tramvaj, pes, kočka, **lev**
+  (AI — loví hráče!), kůň, dítě, pán, paní, hasič, policajt, městský policajt, zdravotník.
+- Assety se do mapy vkládají **náhodně** s **omezeným počtem online**; počty
+  a kategorie se ladí v **Nastavení → Živé město** (výchozí hodnoty má každá mapa).
+- Každý asset má **vlastní health**. Zničení → **náhodná odměna**
+  ([src/game/rewards.js](src/game/rewards.js), konfigurovatelný seznam):
+  10–100 % zdraví, +10–100 armor (30 s), 2–4× damage (10 s), dočasná nesmrtelnost,
+  precise shot (všechny zásahy headshot), speciální zbraň (zlaté střely, 3× damage,
+  bez munice).
+- Zabití **chráněného** NPC (dítě, pes, zdravotník) → **penalizace**: freeze 2–10 s,
+  self damage 10–80 %, no aim 2–10 s, blurry vision 2–10 s (rozmazaný HUD),
+  no gun 2–10 s. Chráněná NPC jdou vypnout v Nastavení.
+- Zničené assety se **respawnují do 10 sekund** (4–10 s, na původním místě).
+
+## Detail map
+
+Každá mapa definuje **povrchy** (`surfaces`): silnice s přerušovanou středovou
+čárou, chodníky s obrubníky, tramvajové koleje s pražci, pěšiny a přechody pro
+chodce ([MapDetail.jsx](src/components/game/MapDetail.jsx)). Po površích se
+pohybují odpovídající assety (tramvaj jen po kolejích, auta po silnici, chodci
+po chodníku).
+
 ## Multiplayer
 
 Online hra běží přes Base44 realtime subscriptions (WebSocket) — lobby

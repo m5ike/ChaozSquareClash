@@ -7,6 +7,7 @@ import { getBindings, formatKeyLabel } from '@/game/keybindings.js';
 import { getModeById } from '@/game/modes.js';
 import { getActiveSession } from '@/game/lobby.js';
 import { startSync, leaveRoom } from '@/multiplayer/transport.js';
+import { playerEffects } from '@/game/rewards.js';
 import { MatchResult } from '@/api/base44Client.js';
 import GameContainer from '@/components/game/GameContainer.jsx';
 import OrientationWarning from '@/components/game/OrientationWarning.jsx';
@@ -41,6 +42,8 @@ export default function Play() {
   const [reloading, setReloading] = useState(null); // {t, duration}
   const [slashCount, setSlashCount] = useState(null); // {t, count} — volba trajektorie
   const [headshotTick, setHeadshotTick] = useState(0); // HEADSHOT banner
+  const [bonusBanner, setBonusBanner] = useState(null); // {t, label, kind: 'reward'|'penalty'}
+  const [effectFx, setEffectFx] = useState({ blur: false, frozen: false }); // vizuální stavy efektů
   const lastHealthRef = useRef(null);
 
   // Desktop = přesné polohovací zařízení (myš/trackpad)
@@ -87,6 +90,8 @@ export default function Play() {
     const onReloadStarted = (info) => setReloading({ t: Date.now(), duration: info?.duration || 1.5 });
     const onReloadFinished = () => setReloading(null);
     const onSlashCount = (info) => setSlashCount({ t: Date.now(), count: info?.count || 1 });
+    const onReward = (info) => setBonusBanner({ t: Date.now(), label: info?.label, kind: 'reward' });
+    const onPenalty = (info) => setBonusBanner({ t: Date.now(), label: info?.label, kind: 'penalty' });
     const onScoreChanged = (value) => {
       setScore(value);
       // Deathmatch: výhra při dosažení cílového skóre
@@ -155,6 +160,8 @@ export default function Play() {
     bus.on('reload-started', onReloadStarted);
     bus.on('reload-finished', onReloadFinished);
     bus.on('slash-count', onSlashCount);
+    bus.on('reward-granted', onReward);
+    bus.on('penalty-applied', onPenalty);
     bus.on('score-changed', onScoreChanged);
     bus.on('mode-event', onModeEvent);
     bus.on('bot-killed-bot', onBotKilledBot);
@@ -175,6 +182,8 @@ export default function Play() {
       bus.off('reload-started', onReloadStarted);
       bus.off('reload-finished', onReloadFinished);
       bus.off('slash-count', onSlashCount);
+      bus.off('reward-granted', onReward);
+      bus.off('penalty-applied', onPenalty);
       bus.off('score-changed', onScoreChanged);
       bus.off('mode-event', onModeEvent);
       bus.off('bot-killed-bot', onBotKilledBot);
@@ -276,6 +285,8 @@ export default function Play() {
         input.firePressed = true;
       }
       if (bindings.reload?.includes(event.code)) input.reloadPressed = true;
+      if (bindings.gesture?.includes(event.code)) input.gesturePressed = true;
+      if (bindings.gestureFace?.includes(event.code)) input.faceGesturePressed = true;
       if (bindings.weapon1?.includes(event.code)) input.weaponSwitch = 0;
       if (bindings.weapon2?.includes(event.code)) input.weaponSwitch = 1;
       if (bindings.weapon3?.includes(event.code)) input.weaponSwitch = 2;
@@ -541,6 +552,36 @@ export default function Play() {
           {/* Červená vinětace při zásahu hráče */}
           {damageTick > 0 && (
             <div key={damageTick} className="absolute inset-0 pointer-events-none damage-flash" />
+          )}
+
+          {/* Rozmazané vidění (penalizace) */}
+          {effectFx.blur && (
+            <div
+              className="absolute inset-0 pointer-events-none z-10"
+              style={{ backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)' }}
+            />
+          )}
+          {/* Zmrazení (penalizace) */}
+          {effectFx.frozen && (
+            <div
+              className="absolute inset-0 pointer-events-none z-10 flex items-center justify-center"
+              style={{ background: 'rgba(120,180,255,0.12)', border: '6px solid rgba(150,200,255,0.35)' }}
+            >
+              <div className="text-4xl">🧊</div>
+            </div>
+          )}
+          {/* Banner odměny / penalizace */}
+          {bonusBanner && Date.now() - bonusBanner.t < 2600 && (
+            <div
+              key={bonusBanner.t}
+              className="absolute left-1/2 top-[38%] -translate-x-1/2 pointer-events-none headshot-banner text-lg font-black"
+              style={{
+                color: bonusBanner.kind === 'reward' ? '#4ade80' : '#f87171',
+                textShadow: '0 0 10px rgba(0,0,0,0.8)',
+              }}
+            >
+              {bonusBanner.label}
+            </div>
           )}
 
           {/* HEADSHOT banner */}

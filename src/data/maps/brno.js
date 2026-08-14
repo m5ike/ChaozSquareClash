@@ -123,6 +123,46 @@ const LAMPS = [
   [13, 0],
 ];
 
+// Povrchy — užší uličky ve tvaru L, hodně chodníků a pěšin mezi stánky,
+// tramvaj na Zelňáku nejezdí. Pásy se vyhýbají stánkům, bednám, stromům,
+// lavičkám i lampám a nechávají volný střed (r 3 kolem [0,0] a [0,6]).
+const SURFACES = {
+  // Silnice šířky 2.5 ve dvou tvarech L — severozápadní a jihovýchodní ulička.
+  roads: [
+    { x: -14, z: -7.25, w: 2.5, d: 11.5 },
+    { x: -5.875, z: -11.75, w: 13.75, d: 2.5 },
+    { x: 14, z: 7.25, w: 2.5, d: 11.5 },
+    { x: 5.875, z: 11.75, w: 13.75, d: 2.5 },
+  ],
+  // Chodníky — podél fasád na všech stranách + vnitřní lemy obou L ulic.
+  sidewalks: [
+    { x: 7.75, z: -12.4, w: 13.5, d: 1.2 },
+    { x: -7.75, z: 12.4, w: 13.5, d: 1.2 },
+    { x: 17.4, z: 0, w: 1.2, d: 26 },
+    { x: -17.4, z: 0, w: 1.2, d: 26 },
+    { x: -5.875, z: -9.9, w: 13.75, d: 1.2 },
+    { x: 5.875, z: 9.9, w: 13.75, d: 1.2 },
+  ],
+  // Koleje v Brně nejsou.
+  rails: [],
+  // Pěšiny — trhové uličky mezi stánky a cestička k jižnímu chodníku.
+  paths: [
+    { x: -7.55, z: 0.6, w: 8.9, d: 0.8 },
+    { x: 7.55, z: -0.65, w: 8.9, d: 0.8 },
+    { x: -7, z: 7.8, w: 0.8, d: 8 },
+  ],
+  // Přechody — po jednom na každém rameni obou L.
+  crosswalks: [
+    { x: -5, z: -11.75, w: 2, d: 2.5, axis: 'z' },
+    { x: -14, z: -8, w: 2.5, d: 2, axis: 'x' },
+    { x: 5, z: 11.75, w: 2, d: 2.5, axis: 'z' },
+    { x: 14, z: 8, w: 2.5, d: 2, axis: 'x' },
+  ],
+};
+
+// Výchozí počty dekoračních assetů — živý trh: nejvíc chodců, aut minimum.
+const ASSET_DEFAULTS = { static: 12, vehicle: 2, pedestrian: 12, animal: 6 };
+
 export default {
   id: 'brno',
   name: 'Brno — Zelný trh',
@@ -137,4 +177,6 @@ export default {
   botSpawns: BOT_SPAWNS,
   pickupSpots: PICKUP_SPOTS,
   lamps: LAMPS,
+  surfaces: SURFACES,
+  assetDefaults: ASSET_DEFAULTS,
 };

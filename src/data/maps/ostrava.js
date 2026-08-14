@@ -105,6 +105,37 @@ const LAMPS = [
   [13, 0],
 ];
 
+// Povrchy — jedna široká průjezdná silnice, průmyslová vlečka přes celou šířku
+// a betonové/škvárové pěšiny mezi kontejnery. Silnice je na z≈11 a vlečka na
+// z≈-10 (posun od ±8 kvůli paletám [±10,±8], stromům na z=±8 a kontejneru
+// [0,-6] sahajícímu až k z=-8); pásy nekolidují s žádnou překážkou.
+const SURFACES = {
+  // Široká přímá silnice přes celou šířku areálu (mezi fasádami x=±18).
+  roads: [{ x: 0, z: 10.9, w: 36, d: 3.6 }],
+  // Betonové chodníky podél severních hal a bočních stěn.
+  sidewalks: [
+    { x: 0, z: -12.5, w: 36, d: 1 },
+    { x: -17.5, z: 0.15, w: 1, d: 17.9 },
+    { x: 17.5, z: 0.15, w: 1, d: 17.9 },
+  ],
+  // Kolejová vlečka přes celou šířku (těžší rozchod 1.8).
+  rails: [{ x: 0, z: -10.2, w: 36, d: 1.8 }],
+  // Industriální pěšiny — dvě podélné spojky silnice↔vlečka a krátká odbočka.
+  paths: [
+    { x: -10.9, z: 1.15, w: 1.4, d: 15.9 },
+    { x: 10.9, z: -1.15, w: 1.4, d: 15.9 },
+    { x: 4.5, z: -6.9, w: 1.2, d: 4.8 },
+  ],
+  // Přechody přes silnici — u středu a u ústí západní pěšiny.
+  crosswalks: [
+    { x: 0, z: 10.9, w: 2.6, d: 3.6, axis: 'z' },
+    { x: -10.9, z: 10.9, w: 2.2, d: 3.6, axis: 'z' },
+  ],
+};
+
+// Výchozí počty dekoračních assetů — průmysl: nejvíc vozidel, chodců málo.
+const ASSET_DEFAULTS = { static: 8, vehicle: 7, pedestrian: 4, animal: 2 };
+
 export default {
   id: 'ostrava',
   name: 'Ostrava — Dolní oblast',
@@ -119,4 +150,6 @@ export default {
   botSpawns: BOT_SPAWNS,
   pickupSpots: PICKUP_SPOTS,
   lamps: LAMPS,
+  surfaces: SURFACES,
+  assetDefaults: ASSET_DEFAULTS,
 };

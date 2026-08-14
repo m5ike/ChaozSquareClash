@@ -5,6 +5,8 @@ import { DEFAULT_GAME_SETTINGS, loadGameSettings, saveGameSettings } from '@/gam
 import { gameState } from '@/game/state.js';
 import { getQualitySetting, setQualitySetting } from '@/game/quality.js';
 import { getMuted, setMuted } from '@/game/audio.js';
+import { getWorldConfig, setWorldConfig } from '@/game/worldConfig.js';
+import { getAutoGestureInterval, setAutoGestureInterval } from '@/game/gestures.js';
 import {
   WEAPON_SKINS,
   BODY_SKINS,
@@ -29,6 +31,13 @@ export default function Settings() {
   const [weaponSkin, setWeaponSkin] = useState(getWeaponSkinId());
   const [bodySkin, setBodySkin] = useState(getBodySkinId());
   const [envSkin, setEnvSkin] = useState(getEnvSkinId());
+  const [worldCfg, setWorldCfg] = useState(() => getWorldConfig(null));
+  const [autoGesture, setAutoGesture] = useState(getAutoGestureInterval());
+
+  const updateWorldCfg = (key, value) => {
+    setWorldCfg((prev) => ({ ...prev, [key]: value }));
+    setWorldConfig({ [key]: value });
+  };
 
   useEffect(() => {
     setBindingsDraft({ ...getBindings() });
@@ -195,6 +204,85 @@ export default function Settings() {
             </div>
           </div>
         ))}
+
+        <div className="pt-4 pb-2">
+          <h2 className="text-sm font-bold text-white/80">🌆 Živé město</h2>
+        </div>
+
+        {[
+          ['static', 'Statické assety', 'stromy, stánky, zaparkovaná auta, koše…', 0, 24],
+          ['vehicle', 'Vozidla', 'auta, autobusy, tramvaje v pohybu', 0, 10],
+          ['pedestrian', 'Chodci', 'páni, paní, děti, hasiči, policajti…', 0, 14],
+          ['animal', 'Zvířata', 'psi, kočky, koně… i lev', 0, 8],
+        ].map(([key, label, desc, min, max]) => (
+          <div key={key} className="rounded-lg px-4 py-3" style={{ background: 'rgba(255,255,255,0.05)' }}>
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <div className="text-sm font-bold">{label}</div>
+                <div className="text-xs text-white/40">{desc}</div>
+              </div>
+              <div className="text-sm text-white/60">{worldCfg[key]}</div>
+            </div>
+            <input
+              type="range"
+              min={min}
+              max={max}
+              step="1"
+              value={worldCfg[key]}
+              onChange={(e) => updateWorldCfg(key, parseInt(e.target.value))}
+              className="w-full accent-emerald-500"
+            />
+          </div>
+        ))}
+
+        <div
+          className="flex items-center justify-between rounded-lg px-4 py-3"
+          style={{ background: 'rgba(255,255,255,0.05)' }}
+        >
+          <div>
+            <div className="text-sm font-bold">Chráněná NPC</div>
+            <div className="text-xs text-white/40">
+              Dítě, pes a zdravotník — za jejich zabití přijde penalizace
+            </div>
+          </div>
+          <button
+            onClick={() => updateWorldCfg('protectedEnabled', !worldCfg.protectedEnabled)}
+            className="relative w-12 h-6 rounded-full transition-all"
+            style={{ background: worldCfg.protectedEnabled ? '#22c55e' : 'rgba(255,255,255,0.2)' }}
+          >
+            <div
+              className="absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all"
+              style={{ left: worldCfg.protectedEnabled ? '26px' : '2px' }}
+            />
+          </button>
+        </div>
+
+        <div className="rounded-lg px-4 py-3" style={{ background: 'rgba(255,255,255,0.05)' }}>
+          <div className="flex items-center justify-between mb-2">
+            <div>
+              <div className="text-sm font-bold">Automatická gesta</div>
+              <div className="text-xs text-white/40">
+                Postava jednou za interval sama zagestikuje (0 = vypnuto); ručně: G / V
+              </div>
+            </div>
+            <div className="text-sm text-white/60">
+              {autoGesture === 0 ? 'vyp.' : `${autoGesture} s`}
+            </div>
+          </div>
+          <input
+            type="range"
+            min="0"
+            max="60"
+            step="5"
+            value={autoGesture}
+            onChange={(e) => {
+              const v = parseInt(e.target.value);
+              setAutoGesture(v);
+              setAutoGestureInterval(v);
+            }}
+            className="w-full accent-cyan-500"
+          />
+        </div>
 
         <div className="pt-4 pb-2">
           <h2 className="text-sm font-bold text-white/80">🎮 Nastavení hry</h2>
