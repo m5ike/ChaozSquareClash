@@ -9,6 +9,7 @@ export const input = {
   fire: false,
   firePressed: false,
   jumpPressed: false,
+  reloadPressed: false,
   sprint: false,
   weaponSwitch: -1,
   powerPressed: false,
@@ -114,39 +115,12 @@ export function getPortraitTexture(url) {
   return portraitCache[url];
 }
 
-// Loadout 3 zbraní odvozený z hlavní zbraně: bližák (1.8×), brokovnice
-// (0.5× / 6 broků), dálka (0.7×). Sdílí hráč i boti.
-export function buildWeaponLoadout(weapon) {
-  const dmg = weapon.damage;
-  return [
-    {
-      name: 'Bližák',
-      type: 'melee',
-      damage: Math.round(dmg * 1.8),
-      cooldown: 0.5,
-      color: weapon.color,
-      range: 2.8,
-    },
-    {
-      name: 'Brokovnice',
-      type: 'spread',
-      damage: Math.round(dmg * 0.5),
-      cooldown: 0.7,
-      color: weapon.color,
-      size: 0.1,
-      count: 6,
-      spread: 0.25,
-    },
-    {
-      name: 'Dálka',
-      type: 'projectile',
-      damage: Math.round(dmg * 0.7),
-      speed: 25,
-      cooldown: 0.3,
-      color: weapon.color,
-      size: 0.12,
-    },
-  ];
+// Loadout 3 zbraní: sečná zbraň (podle kategorie), brokovnice, dálka.
+// Kompletní ladění je v @/game/weaponsConfig.js.
+import { buildLoadout } from '@/game/weaponsConfig.js';
+
+export function buildWeaponLoadout(_, character) {
+  return buildLoadout(character);
 }
 
 // Vybraná postava — nastavuje Home, čte hra. Loadout se dopočítává líně.
@@ -154,12 +128,13 @@ let selectedCharacter = null;
 
 export function setSelectedCharacter(character) {
   selectedCharacter = character;
+  if (character) character.weapons = null; // přegeneruj loadout (mohly se změnit skiny/config)
 }
 
 export function getSelectedCharacter() {
   if (!selectedCharacter) return null;
   if (!selectedCharacter.weapons) {
-    selectedCharacter.weapons = buildWeaponLoadout(selectedCharacter.weapon);
+    selectedCharacter.weapons = buildLoadout(selectedCharacter);
   }
   return selectedCharacter;
 }

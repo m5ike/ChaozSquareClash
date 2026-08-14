@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { getFaceTexture } from '@/game/faces.js';
+import { getProtection } from '@/game/hitZones.js';
 import WeaponModel from '@/components/game/WeaponModel.jsx';
 
 // Kloubový low-poly humanoid ve stylu retro Quake/Minecraft.
@@ -31,7 +32,7 @@ function outfitFor(character) {
 const SKIN = '#e0b088';
 const SHOE = '#241a12';
 
-export default function CharacterModel({ character, animRef, team = null }) {
+export default function CharacterModel({ character, animRef, team = null, outfitOverride = null, weaponSkin = null }) {
   const rootRef = useRef(); // pivot pádu (u chodidel)
   const armLRef = useRef();
   const armRRef = useRef();
@@ -40,7 +41,12 @@ export default function CharacterModel({ character, animRef, team = null }) {
   const walkPhase = useRef(Math.random() * Math.PI * 2);
   const materialsRef = useRef([]);
 
-  const outfit = useMemo(() => outfitFor(character), [character]);
+  const outfit = useMemo(
+    () => ({ ...outfitFor(character), ...(outfitOverride || {}) }),
+    [character, outfitOverride]
+  );
+  // postava s helmou (přilba/maska/čepice…) ji nosí i vizuálně — chrání hlavu
+  const hasHelmet = useMemo(() => getProtection(character).helmetProtect > 0, [character]);
   const faceTexture = useMemo(() => getFaceTexture(character), [character]);
 
   // Posbírej materiály jednou — kvůli bílému emissive záblesku při zásahu
@@ -168,7 +174,7 @@ export default function CharacterModel({ character, animRef, team = null }) {
         {/* Zbraň postavy v pravé ruce */}
         {weapon && (
           <group position={[0.02, -0.5, 0.12]} rotation={[Math.PI / 2, 0, 0]} scale={0.85}>
-            <WeaponModel weapon={weapon} />
+            <WeaponModel weapon={weapon} skin={weaponSkin} />
           </group>
         )}
       </group>
@@ -183,6 +189,20 @@ export default function CharacterModel({ character, animRef, team = null }) {
         <meshStandardMaterial attach="material-4" map={faceTexture} color="#ffffff" />
         <meshStandardMaterial attach="material-5" color="#2a1e16" />
       </mesh>
+
+      {/* Helma — vizuální ochrana hlavy (viz tabulka poranění) */}
+      {hasHelmet && (
+        <group position={[0, 1.38, 0]}>
+          <mesh castShadow>
+            <boxGeometry args={[0.34, 0.14, 0.34]} />
+            <meshStandardMaterial color="#4a5058" metalness={0.4} roughness={0.5} />
+          </mesh>
+          <mesh position={[0, -0.06, 0.16]}>
+            <boxGeometry args={[0.34, 0.06, 0.03]} />
+            <meshStandardMaterial color="#3a4046" metalness={0.4} roughness={0.5} />
+          </mesh>
+        </group>
+      )}
 
       {/* Doplňky podle kategorie */}
       {outfit.headband && (

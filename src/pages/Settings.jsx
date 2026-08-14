@@ -5,6 +5,17 @@ import { DEFAULT_GAME_SETTINGS, loadGameSettings, saveGameSettings } from '@/gam
 import { gameState } from '@/game/state.js';
 import { getQualitySetting, setQualitySetting } from '@/game/quality.js';
 import { getMuted, setMuted } from '@/game/audio.js';
+import {
+  WEAPON_SKINS,
+  BODY_SKINS,
+  ENV_SKINS,
+  getWeaponSkinId,
+  setWeaponSkinId,
+  getBodySkinId,
+  setBodySkinId,
+  getEnvSkinId,
+  setEnvSkinId,
+} from '@/game/skins.js';
 
 // Nastavení — klávesové zkratky, boti a god mode
 export default function Settings() {
@@ -15,6 +26,9 @@ export default function Settings() {
   const [gameSettings, setGameSettings] = useState(DEFAULT_GAME_SETTINGS);
   const [quality, setQuality] = useState(getQualitySetting());
   const [soundOn, setSoundOn] = useState(!getMuted());
+  const [weaponSkin, setWeaponSkin] = useState(getWeaponSkinId());
+  const [bodySkin, setBodySkin] = useState(getBodySkinId());
+  const [envSkin, setEnvSkin] = useState(getEnvSkinId());
 
   useEffect(() => {
     setBindingsDraft({ ...getBindings() });
@@ -115,6 +129,69 @@ export default function Settings() {
                   +
                 </button>
               )}
+            </div>
+          </div>
+        ))}
+
+        <div className="pt-4 pb-2">
+          <h2 className="text-sm font-bold text-white/80">🎨 Skiny</h2>
+        </div>
+
+        {[
+          {
+            label: 'Skin zbraní',
+            desc: 'Materiál zbraně v ruce i v náhledu',
+            options: WEAPON_SKINS,
+            value: weaponSkin,
+            set: (id) => {
+              setWeaponSkinId(id);
+              setWeaponSkin(id);
+            },
+          },
+          {
+            label: 'Skin těla',
+            desc: 'Oblečení tvé postavy (boti zůstávají ve svém)',
+            options: BODY_SKINS,
+            value: bodySkin,
+            set: (id) => {
+              setBodySkinId(id);
+              setBodySkin(id);
+            },
+          },
+          {
+            label: 'Skin prostředí',
+            desc: 'Barevné ladění mapy — Noc, Zima, Retro sépie',
+            options: ENV_SKINS,
+            value: envSkin,
+            set: (id) => {
+              setEnvSkinId(id);
+              setEnvSkin(id);
+            },
+          },
+        ].map((row) => (
+          <div key={row.label} className="rounded-lg px-4 py-3" style={{ background: 'rgba(255,255,255,0.05)' }}>
+            <div className="mb-2">
+              <div className="text-sm font-bold">{row.label}</div>
+              <div className="text-xs text-white/40">{row.desc}</div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {row.options.map((option) => (
+                <button
+                  key={option.id}
+                  onClick={() => row.set(option.id)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold border ${
+                    row.value === option.id
+                      ? 'border-green-500 text-white'
+                      : 'border-white/15 text-white/50'
+                  }`}
+                  style={{
+                    background:
+                      row.value === option.id ? 'rgba(22,163,74,0.3)' : 'rgba(255,255,255,0.05)',
+                  }}
+                >
+                  {option.name}
+                </button>
+              ))}
             </div>
           </div>
         ))}

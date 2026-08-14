@@ -4,7 +4,14 @@ import { useFrame } from '@react-three/fiber';
 import { bus } from '@/game/events.js';
 import { gameState } from '@/game/state.js';
 import { BOT, PROJECTILE_POOL_SIZE, PROJECTILE_TTL, RESPAWN_SECONDS } from '@/game/constants.js';
-import { hitZoneFromHeight, randomHitZone } from '@/game/hitZones.js';
+import {
+  resolveHitZone,
+  randomZone,
+  computeHitDamage,
+  getProtection,
+  randomHitZone,
+} from '@/game/hitZones.js';
+import { getSelectedCharacter } from '@/game/state.js';
 
 // Pool projektilů (hráč i boti): recyklované meshe, ruční pohyb a kolize
 // koulí, zásahové zóny podle výšky dopadu, damage a skóre.
@@ -50,6 +57,7 @@ export default function Projectiles() {
       proj.owner = owner;
       proj.shooterIndex = weapon.enemyIndex ?? -1;
       proj.shooterTeam = owner === 'player' ? 'blue' : weapon.team || 'red';
+      proj.armorPen = weapon.armorPen ?? 0;
       proj.x = origin.x;
       proj.y = origin.y;
       proj.z = origin.z;
@@ -135,18 +143,28 @@ export default function Projectiles() {
           const dy = proj.y - pos.y;
           const dz = proj.z - pos.z;
           if (dx * dx + dy * dy + dz * dz < 0.36) {
-            // zásahová zóna podle relativní výšky dopadu na kapsli
+            // zásahová zóna podle výšky dopadu; obličej/srdce jen zepředu —
+            // porovnáváme směr letu projektilu s natočením postavy
             const bodyHeight = BOT.halfHeight * 2 + BOT.radius * 2;
             const heightRatio = (proj.y - (pos.y - bodyHeight / 2)) / bodyHeight;
             const lateral = Math.sqrt(dx * dx + dz * dz);
-            const zone = hitZoneFromHeight(heightRatio, lateral);
-            const defense = enemy.armor?.defense || 1;
-            enemy.health -= proj.damage * defense * zone.mult;
+            const facingYaw = enemy.facingYaw ?? 0;
+            const frontal =
+              proj.dx * Math.sin(facingYaw) + proj.dz * Math.cos(facingYaw) < -0.2;
+            const zone = resolveHitZone(heightRatio, lateral, frontal);
+            const hit = computeHitDamage(
+              proj.damage,
+              zone,
+              getProtection(enemy.character),
+              proj.armorPen
+            );
+            enemy.health -= hit.damage;
             bus.emit('hit-enemy', {
               index: e,
-              damage: proj.damage * zone.mult,
-              crit: zone.crit,
-              part: zone.part,
+              damage: hit.damage,
+              crit: hit.crit,
+              headshot: hit.headshot,
+              part: hit.zone,
               byPlayer: proj.owner === 'player',
             });
             if (enemy.health <= 0) {
@@ -161,8 +179,9 @@ export default function Projectiles() {
                 bus.emit('enemy-killed', {
                   index: e,
                   name: enemy.character?.name,
-                  crit: zone.crit,
-                  part: zone.part,
+                  crit: hit.crit,
+                  headshot: hit.headshot,
+                  part: hit.zone,
                 });
               } else {
                 // bot zabil bota — skóre týmu střelce + killfeed
@@ -220,8 +239,20 @@ export default function Projectiles() {
         const dy = proj.y - (gameState.playerPos.y + 0.5);
         const dz = proj.z - gameState.playerPos.z;
         if (dx * dx + dy * dy + dz * dz < 0.36) {
-          const zone = randomHitZone();
-          gameState.playerHealth -= proj.damage * gameState.playerArmor * zone.mult;
+          // zásah hráče: zóna podle výšky dopadu na kapsli, ochrana brnění/helmy
+          const playerHeight = 1.4;
+          const heightRatio = Math.max(
+            0,
+            Math.min(1, (proj.y - (gameState.playerPos.y - 0.7)) / playerHeight)
+          );
+          const zone = resolveHitZone(heightRatio, Math.sqrt(dx * dx + dz * dz), Math.random() < 0.6);
+          const hit = computeHitDamage(
+            proj.damage,
+            zone,
+            getProtection(getSelectedCharacter()),
+            proj.armorPen
+          );
+          gameState.playerHealth -= hit.damage;
           bus.emit('health-changed', gameState.playerHealth);
           if (gameState.playerHealth <= 0) {
             gameState.phase = 'respawning';

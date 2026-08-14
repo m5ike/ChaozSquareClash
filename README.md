@@ -121,6 +121,104 @@ Produkční build: `npm run build`, náhled: `npm run preview`.
 - **Statistiky** — žebříček má záložky Dnes / Síň slávy (Chaos rating
   `1000 + 2×skóre + 3×killy − 2×smrti`, série výher) / Vývoj (SVG graf).
 
+## Backend v projektu (bez Base44)
+
+Veškerá data běží **lokálně v projektu** — [src/api/localBackend.js](src/api/localBackend.js)
+implementuje stejné API jako Base44 SDK (entities `list/filter/create/update/delete/get/subscribe`,
+auth `me/updateMe`) nad localStorage; realtime funguje přes BroadcastChannel, takže
+multiplayer běží **mezi taby stejného prohlížeče** bez jakéhokoli serveru.
+Žebříček, nastavení, klávesy i místnosti jsou tedy plně offline.
+
+Přepnutí zpět na Base44 backend (sdílený žebříček s nasazenou verzí):
+
+```js
+localStorage.setItem('chaos_backend', 'base44'); // + reload; 'local' vrátí zpět
+```
+
+nebo `VITE_BACKEND=base44 npm run build`.
+
+## Tabulka poranění a přesnosti zásahů
+
+Implementace: [src/game/hitZones.js](src/game/hitZones.js).
+
+| Zóna     | Poškození (podíl zbraně) | Chrání   | Poznámka              |
+|----------|--------------------------|----------|-----------------------|
+| Obličej  | **100 %**                | helma    | 🎯 **HEADSHOT** banner |
+| Hlava    | 80–99 %                  | helma    |                       |
+| Srdce    | 80–90 %                  | brnění   | kritický zásah        |
+| Ramena   | 5–30 %                   | brnění   |                       |
+| Ruce     | 5–30 %                   | —        |                       |
+| Nohy     | 5–30 %                   | —        |                       |
+| Tělo     | 5–30 %                   | brnění   |                       |
+
+- Zóna se určuje z **výšky dopadu** na kapsli postavy, **boční vzdálenosti** od osy
+  těla a toho, zda zásah přišel **zepředu** (obličej a srdce jdou trefit jen frontálně —
+  porovnává se směr střely s natočením postavy).
+- **Helma vs. brnění**: předmět postavy, jehož název obsahuje *přilba, maska, čepice,
+  klobouk, helma, kukla*, chrání hlavu a obličej (a je vidět na modelu); ostatní
+  předměty chrání trup (srdce, ramena, tělo). Síla ochrany = `1 − defense` předmětu.
+- **Průraznost** (`armorPen` 0–1 na zbrani) část ochrany ignoruje.
+- Vzorec: `poškození = zbraň × náhodný podíl zóny × (1 − ochrana × (1 − armorPen))`.
+
+## How-to: ladění zbraní
+
+Všechno ladění je v **[src/game/weaponsConfig.js](src/game/weaponsConfig.js)** —
+uprav hodnoty a ulož (dev server se sám obnoví).
+
+**Střelné zbraně** (`RANGED_DEFAULTS.spread` = brokovnice, `.projectile` = dálková):
+
+| Parametr | Význam |
+|---|---|
+| `accuracy` | přesnost 0–1; efektivní rozptyl = `spread × (1.15 − accuracy)` |
+| `damageScale` | účinnost na zdraví (násobek damage postavy) |
+| `armorPen` | účinnost proti brnění/helmě 0–1 (kolik ochrany ignoruje) |
+| `spread` | základní rozptyl (radiány); u brokovnice kužel broků |
+| `pelletCount` | broků na výstřel (jen brokovnice) |
+| `magSize` | **max. výstřelů na zásobník** |
+| `magazines` | **max. zásobníků** (celková munice = magSize × magazines) |
+| `fireCooldown` | **cooldown mezi jednotlivými střelami** (s) |
+| `reloadCooldown` | **cooldown výměny zásobníku** (s); přebíjení: klávesa **R** nebo automaticky při prázdném zásobníku |
+| `projectileSpeed` | rychlost střely (j/s) |
+| `behavior` | chování střely (`projectile` = letící projektil s kolizí) |
+
+**Sečné zbraně** (`SLASH_TYPES` + `CATEGORY_SLASH` + `SLASH_TRAJECTORIES`):
+
+| Parametr | Význam |
+|---|---|
+| typ | `sekera` \| `mec` \| `nuz` \| `katana` (přiřazení kategorií postav v `CATEGORY_SLASH`) |
+| `lengthPct` | **délka čepele v procentech výšky postavy** (výška = 1.45 m); dosah = délka + paže |
+| `damageMult` | násobek damage postavy |
+| `swingCooldown` | cooldown po švihu (s) |
+| počet trajektorií | `trajectories` (výchozí 4) |
+
+**Trajektorie** — vybírá se **počtem stisků klávesy střelby** v okně 350 ms
+(1× stisk = trajektorie 1, 2× = 2, …). Při švihu se vykreslí stopa čepele
+i tečkovaná celá dráha. Čtyři základní trajektorie (`SLASH_TRAJECTORIES`):
+
+1. **Rozmach zleva** — z leva ve výšce těla doprava do výšky hlavy a zpátky (zasahuje tělo→hlavu)
+2. **Rozmach zprava** — zrcadlově z prava doleva a zpátky
+3. **Bodnutí na hlavu** — dlouhé bodnutí od pasu na hlavu protivníka (obličej/hlava)
+4. **Bodnutí na tělo** — dlouhé bodnutí od pasu na tělo protivníka (srdce/tělo)
+
+Vlastní trajektorii přidáš novým objektem v `SLASH_TRAJECTORIES`: body `{x, y, z}`
+v normalizovaném prostoru (x −1 vlevo…1 vpravo, y 0 pas…1 hlava, z 0 u těla…1 plný
+dosah), `zone` (`'sweep' | 'head' | 'body'`) a `duration` v sekundách.
+
+## Skiny
+
+Výběr v **Nastavení → Skiny** ([src/game/skins.js](src/game/skins.js)):
+
+- **Zbraně**: Klasik, Zlatá, Chrom, Neon (svítící), Dřevo — mění materiál FP zbraně,
+  čepele i zbraně v náhledu postavy.
+- **Tělo**: Klasik (podle kategorie), Černý oblek, Retro tepláky, Zlatý ročník —
+  oblečení tvé postavy (náhled + ruce v FP pohledu); boti zůstávají ve svém.
+- **Prostředí**: Klasik, Noc, Zima, Retro sépie — barevná transformace palety celé
+  mapy včetně oblohy a mlhy.
+
+Nový skin přidáš položkou v příslušném poli v `skins.js` (u zbraní jde o materiálové
+vlastnosti `{color, metalness, roughness, emissive}`, u těla o `outfit` barvy,
+u prostředí o transformaci palety v `applyEnvSkin`).
+
 ## Multiplayer
 
 Online hra běží přes Base44 realtime subscriptions (WebSocket) — lobby

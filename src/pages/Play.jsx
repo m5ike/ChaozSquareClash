@@ -37,6 +37,10 @@ export default function Play() {
   const [damageTick, setDamageTick] = useState(0); // časová značka poklesu zdraví (vinětace)
   const [gameOver, setGameOver] = useState(null); // {won, reason} — konec zápasu
   const [modeHud, setModeHud] = useState(null); // stav HUD panelu herního módu
+  const [ammo, setAmmo] = useState(null); // {infinite, mag, reserve}
+  const [reloading, setReloading] = useState(null); // {t, duration}
+  const [slashCount, setSlashCount] = useState(null); // {t, count} — volba trajektorie
+  const [headshotTick, setHeadshotTick] = useState(0); // HEADSHOT banner
   const lastHealthRef = useRef(null);
 
   // Desktop = přesné polohovací zařízení (myš/trackpad)
@@ -75,7 +79,14 @@ export default function Play() {
       lastHealthRef.current = value;
       setHealth(Math.max(0, value));
     };
-    const onHitEnemy = (info) => setHitMarker({ t: Date.now(), crit: !!info?.crit });
+    const onHitEnemy = (info) => {
+      setHitMarker({ t: Date.now(), crit: !!info?.crit });
+      if (info?.headshot && info?.byPlayer !== false) setHeadshotTick(Date.now());
+    };
+    const onAmmoChanged = (info) => setAmmo(info);
+    const onReloadStarted = (info) => setReloading({ t: Date.now(), duration: info?.duration || 1.5 });
+    const onReloadFinished = () => setReloading(null);
+    const onSlashCount = (info) => setSlashCount({ t: Date.now(), count: info?.count || 1 });
     const onScoreChanged = (value) => {
       setScore(value);
       // Deathmatch: výhra při dosažení cílového skóre
@@ -140,6 +151,10 @@ export default function Play() {
     };
     bus.on('health-changed', onHealthChanged);
     bus.on('hit-enemy', onHitEnemy);
+    bus.on('ammo-changed', onAmmoChanged);
+    bus.on('reload-started', onReloadStarted);
+    bus.on('reload-finished', onReloadFinished);
+    bus.on('slash-count', onSlashCount);
     bus.on('score-changed', onScoreChanged);
     bus.on('mode-event', onModeEvent);
     bus.on('bot-killed-bot', onBotKilledBot);
@@ -156,6 +171,10 @@ export default function Play() {
     return () => {
       bus.off('health-changed', onHealthChanged);
       bus.off('hit-enemy', onHitEnemy);
+      bus.off('ammo-changed', onAmmoChanged);
+      bus.off('reload-started', onReloadStarted);
+      bus.off('reload-finished', onReloadFinished);
+      bus.off('slash-count', onSlashCount);
       bus.off('score-changed', onScoreChanged);
       bus.off('mode-event', onModeEvent);
       bus.off('bot-killed-bot', onBotKilledBot);
@@ -256,6 +275,7 @@ export default function Play() {
         input.fire = true;
         input.firePressed = true;
       }
+      if (bindings.reload?.includes(event.code)) input.reloadPressed = true;
       if (bindings.weapon1?.includes(event.code)) input.weaponSwitch = 0;
       if (bindings.weapon2?.includes(event.code)) input.weaponSwitch = 1;
       if (bindings.weapon3?.includes(event.code)) input.weaponSwitch = 2;
@@ -521,6 +541,35 @@ export default function Play() {
           {/* Červená vinětace při zásahu hráče */}
           {damageTick > 0 && (
             <div key={damageTick} className="absolute inset-0 pointer-events-none damage-flash" />
+          )}
+
+          {/* HEADSHOT banner */}
+          {headshotTick > 0 && (
+            <div
+              key={headshotTick}
+              className="absolute left-1/2 top-[30%] -translate-x-1/2 pointer-events-none headshot-banner text-2xl font-black tracking-widest"
+              style={{ color: '#ff4444', textShadow: '0 0 12px rgba(255,60,60,0.9)' }}
+            >
+              🎯 HEADSHOT!
+            </div>
+          )}
+
+          {/* Munice a přebíjení (vpravo dole nad lištou zbraní) */}
+          {ammo && (
+            <div className="absolute bottom-14 right-3 pointer-events-none text-right hud-b hud-r">
+              {reloading ? (
+                <div className="text-yellow-300 text-sm font-bold animate-pulse">⟳ PŘEBÍJENÍ…</div>
+              ) : (
+                <div className="text-white text-lg font-bold drop-shadow">
+                  {ammo.infinite ? '∞' : `${ammo.mag} / ${ammo.reserve}`}
+                </div>
+              )}
+              {slashCount && Date.now() - slashCount.t < 700 && (
+                <div className="text-cyan-300 text-xs font-bold">
+                  Trajektorie {slashCount.count}
+                </div>
+              )}
+            </div>
           )}
 
           {/* Zaměřovač */}

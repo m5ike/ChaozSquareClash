@@ -1,5 +1,6 @@
 import { useMemo, useRef } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
+import { getBodySkinOutfit, getWeaponSkinProps } from '@/game/skins.js';
 import CharacterModel from '@/components/game/CharacterModel.jsx';
 
 // Pomalu rotující podstavec s modelem — lehká chůze na místě, ať je vidět animace
@@ -14,7 +15,12 @@ function Turntable({ character }) {
   });
   return (
     <group ref={groupRef} position={[0, -0.72, 0]}>
-      <CharacterModel character={character} animRef={anim} />
+      <CharacterModel
+        character={character}
+        animRef={anim}
+        outfitOverride={getBodySkinOutfit()}
+        weaponSkin={getWeaponSkinProps()}
+      />
       <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <circleGeometry args={[0.62, 24]} />
         <meshStandardMaterial color="#1c2333" />

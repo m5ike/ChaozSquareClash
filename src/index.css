@@ -142,3 +142,27 @@
   background: radial-gradient(ellipse at center, transparent 55%, rgba(220, 38, 38, 0.45) 100%);
   animation: damage-fade 0.45s ease-out forwards;
 }
+
+/* HEADSHOT banner — švihne nahoru a dohasne */
+@keyframes headshot-pop {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 10px) scale(0.7);
+  }
+  15% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1.15);
+  }
+  70% {
+    opacity: 1;
+    transform: translate(-50%, -6px) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -14px) scale(0.95);
+  }
+}
+
+.headshot-banner {
+  animation: headshot-pop 0.9s ease-out forwards;
+}

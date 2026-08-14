@@ -38,9 +38,13 @@ export function setSelectedModeId(id) {
   }
 }
 
-// Aktivní mapa/mód pro herní komponenty
+// Aktivní mapa/mód pro herní komponenty. Paleta prochází skinem prostředí
+// (Noc/Zima/Retro), takže mapy i obloha mění ladění podle výběru v Nastavení.
+import { applyEnvSkin } from '@/game/skins.js';
+
 export function getActiveMap() {
-  return getMapById(getSelectedMapId());
+  const map = getMapById(getSelectedMapId());
+  return { ...map, palette: applyEnvSkin(map.palette) };
 }
 
 export function getActiveMode() {

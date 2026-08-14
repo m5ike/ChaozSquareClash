@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import { createAxiosClient } from '@base44/sdk/dist/utils/axios-client.js';
 import { getAccessToken } from '@base44/sdk/dist/utils/auth-utils.js';
-import { base44, auth } from '@/api/base44Client.js';
+import { base44, auth, backendKind } from '@/api/base44Client.js';
 
 // Parametry aplikace — appId sdílíme s base44 klientem; access token může
 // přijít v URL (?access_token=...), uloží se do localStorage a z URL se smaže.
@@ -27,6 +27,16 @@ export const AuthProvider = ({ children }) => {
 
   // Ověří stav aplikace (veřejná nastavení) a případně přihlášeného uživatele
   const checkAppState = async () => {
+    // Lokální backend: žádná kontrola veřejných nastavení, hráč je vždy „přihlášen"
+    if (backendKind === 'local') {
+      const localUser = await auth.me();
+      setUser(localUser);
+      setIsAuthenticated(true);
+      setIsLoadingAuth(false);
+      setIsLoadingPublicSettings(false);
+      setAuthChecked(true);
+      return;
+    }
     try {
       setIsLoadingPublicSettings(true);
       setAuthError(null);

@@ -63,6 +63,12 @@ export const KEY_BINDING_DEFS = [
     default: ['Digit3'],
   },
   {
+    name: 'reload',
+    label: 'Přebít',
+    desc: 'Výměna zásobníku',
+    default: ['KeyR'],
+  },
+  {
     name: 'scoreboard',
     label: 'Scoreboard',
     desc: 'Tabulka výsledků',

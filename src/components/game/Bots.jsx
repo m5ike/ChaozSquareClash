@@ -6,11 +6,11 @@ import {
   gameState,
   getSelectedCharacter,
   pickRandomOpponents,
-  buildWeaponLoadout,
   classifyPower,
 } from '@/game/state.js';
+import { buildLoadout } from '@/game/weaponsConfig.js';
 import { BOT, RESPAWN_SECONDS } from '@/game/constants.js';
-import { randomHitZone } from '@/game/hitZones.js';
+import { randomZone, computeHitDamage, getProtection } from '@/game/hitZones.js';
 import { buildObstacleGrid, computeSteering, findCoverSpot, chooseWeaponIndex } from '@/game/ai.js';
 import { getActiveMap } from '@/game/lobby.js';
 import CharacterModel from '@/components/game/CharacterModel.jsx';
@@ -71,7 +71,7 @@ export default function Bots() {
         team,
         spawnPos: map.botSpawns[i] || [0, 1, -5],
         // AI stav
-        loadout: ch ? buildWeaponLoadout(ch.weapon) : buildWeaponLoadout({ damage: 10, color: '#ff3333' }),
+        loadout: buildLoadout(ch),
         coverSpot: null,
         coverUntil: 0,
         stunTimer: 0,
@@ -242,9 +242,15 @@ export default function Bots() {
   // Poškození bota botem (melee/schopnost) — sdílená cesta se skóre a killfeedem
   function damageBot(victim, damage, attacker) {
     if (victim.invincibleTimer > 0) return;
-    const defense = victim.armor?.defense || 1;
-    victim.health -= damage * defense;
-    bus.emit('hit-enemy', { index: victim.id, damage, crit: false, part: 'tělo' });
+    const hit = computeHitDamage(damage, randomZone(0.5), getProtection(victim.character), 0);
+    victim.health -= hit.damage;
+    bus.emit('hit-enemy', {
+      index: victim.id,
+      damage: hit.damage,
+      crit: hit.crit,
+      headshot: hit.headshot,
+      part: hit.zone,
+    });
     if (victim.health <= 0 && victim.alive) {
       victim.alive = false;
       victim.respawnTimer = BOT.respawnTime;
@@ -445,7 +451,10 @@ export default function Bots() {
             y: pos.y,
             z: pos.z + steer.z * speed * delta,
           });
-          if (modelYaw) modelYaw.rotation.y = Math.atan2(steer.x, steer.z);
+          if (modelYaw) {
+            modelYaw.rotation.y = Math.atan2(steer.x, steer.z);
+            enemy.facingYaw = modelYaw.rotation.y;
+          }
           if (anim) anim.speed = 1;
         } else {
           // v krytu: pomalé léčení, po vyléčení nebo vypršení zpět do boje
@@ -520,24 +529,29 @@ export default function Bots() {
         }
       } else {
         // Zblízka: bližák
-        if (modelYaw && dist > 0.001) modelYaw.rotation.y = Math.atan2(dx / dist, dz / dist);
+        if (modelYaw && dist > 0.001) {
+          modelYaw.rotation.y = Math.atan2(dx / dist, dz / dist);
+          enemy.facingYaw = modelYaw.rotation.y;
+        }
         if (anim) anim.speed = 0;
         if (now - enemy.lastAttack > BOT.attackCooldown) {
           enemy.lastAttack = now;
           if (anim) anim.attackTimer = 0.35;
           const meleeDamage = enemy.loadout[0].damage * dmgMult;
           if (target.kind === 'player') {
-            const zone = randomHitZone();
             if (
               !gameState.gameSettings?.godMode &&
               !gameState.playerInvincible &&
               gameState.playerStunTimer <= 0
             ) {
-              gameState.playerHealth -=
-                (gameState.gameSettings?.botDamage ?? meleeDamage * 0.6) *
-                gameState.playerArmor *
-                zone.mult *
-                0.5;
+              const base = gameState.gameSettings?.botDamage ?? meleeDamage * 0.6;
+              const hit = computeHitDamage(
+                base,
+                randomZone(0.7),
+                getProtection(getSelectedCharacter()),
+                0
+              );
+              gameState.playerHealth -= hit.damage;
               bus.emit('health-changed', gameState.playerHealth);
             }
             checkPlayerDeath(enemy);
