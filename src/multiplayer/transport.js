@@ -138,6 +138,13 @@ function upsertPeer(session, record) {
     }
     if (wasAlive && !peer.alive) {
       bus.emit('mode-event', { text: `💀 ${peer.nickname} padl` });
+      // pokud jsem ho nedávno zasáhl, počítá se mi kill (bonus munice/HP/armor)
+      if (peer.lastHitByMeAt && Date.now() - peer.lastHitByMeAt < 3000) {
+        bus.emit('remote-player-killed', { key: peer.key, nickname: peer.nickname });
+        gameState.kills++;
+        gameState.score++;
+        bus.emit('score-changed', gameState.score);
+      }
     }
   }
 }
@@ -194,6 +201,8 @@ export function startSync(session) {
 
   // 2) hlášení mých zásahů (Projectiles detekuje kolizi s peerem)
   const onRemoteHit = (info) => {
+    const peer = session.peers.get(info.key);
+    if (peer) peer.lastHitByMeAt = Date.now();
     base44.entities.HitEvent.create({
       room_id: session.room.id,
       target_key: info.key,

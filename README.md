@@ -121,6 +121,28 @@ Produkční build: `npm run build`, náhled: `npm run preview`.
 - **Statistiky** — žebříček má záložky Dnes / Síň slávy (Chaos rating
   `1000 + 2×skóre + 3×killy − 2×smrti`, série výher) / Vývoj (SVG graf).
 
+## Administrace hry (/admin)
+
+Kompletní GUI editor celé hry — tlačítko **🛠 Admin** na úvodní obrazovce nebo
+přímo `/admin`. Profesionální rozhraní ve stylu herních editorů (postranní
+navigace + inspektory vlastností):
+
+| Sekce | Co umí |
+|---|---|
+| 📊 Přehled | statistiky projektu, **export/import celé konfigurace** (JSON), reset |
+| 🎛️ Herní parametry | hráč (HP, skok…), boti, cílové skóre, respawn, cíle módů, **váhy odměn a penalizací** |
+| 🔫 Zbraně | všechny parametry všech zbraní: přesnost, damage, armor pen, rozptyl, zásobníky, cooldowny, splash… |
+| 📦 Assety & šablony | katalog všech typů: health, ne/zničitelnost, chráněnost, podklad, typ pohybu, cesta, rychlost + **šablony typů** a rezervní parametry do budoucna (armor, damage koeficienty, munice…) |
+| 👤 Postavy & avataři | 55 postav s avatary: staty, zbraň, brnění/helma, schopnost, barva |
+| 🧊 Editor 3D modelů | **tvorba vlastních modelů z primitiv** (box/koule/kapsle/válec/kužel) s živým 3D náhledem — uložené se spawnují v živém městě |
+| 🏃 Pohyby & události | délky gest a mimiky, pohybové sety, **onEvent pravidla** (událost → akce: zpráva/gesto/odměna/penalizace/zvuk) |
+| 🎨 Textury & skiny | aktivní skiny, **živá editace palety každé mapy**, náhledy textur obličejů |
+| 🗺️ Editor map | **2D builder**: kreslení budov/překážek/silnic/chodníků/kolejí/přechodů/parkovišť, umisťování stromů/spawnů/pickupů, vlastnosti mapy, export/import JSON — custom mapy se objeví ve výběru v lobby |
+
+Úpravy se ukládají jako **overrides** ([src/admin/overrides.js](src/admin/overrides.js))
+do localStorage a aplikují se mutací živé konfigurace při startu — zdrojový kód
+se nemění. Export z Přehledu = přenositelná konfigurace celého projektu.
+
 ## Backend v projektu (bez Base44)
 
 Veškerá data běží **lokálně v projektu** — [src/api/localBackend.js](src/api/localBackend.js)
@@ -179,9 +201,20 @@ uprav hodnoty a ulož (dev server se sám obnoví).
 | `fireCooldown` | **cooldown mezi jednotlivými střelami** (s) |
 | `reloadCooldown` | **cooldown výměny zásobníku** (s); přebíjení: klávesa **R** nebo automaticky při prázdném zásobníku |
 | `projectileSpeed` | rychlost střely (j/s) |
-| `behavior` | chování střely (`projectile` = letící projektil s kolizí) |
+| `behavior` | chování střely (`projectile` = letící projektil; `rocket` = exploduje) |
+| `splashRadius` | poloměr exploze (jen raketomet) — poškození klesá lineárně k okraji |
 
-**Sečné zbraně** (`SLASH_TYPES` + `CATEGORY_SLASH` + `SLASH_TRAJECTORIES`):
+**Loadout hráče** (klávesy 1–6): 1 sečná zbraň, 2 Brokovnice, 3 Dálka,
+**4 Samopal** (zásobník 40 × 5, cooldown výstřelu 0,01 s, přebíjení 3 s, vysoká
+přesnost i damage), **5 Raketomet** (1 raketa × 5, výstřel po 4 s, přebíjení 1 s,
+velmi vysoký damage + **plošné poškození klesající v okruhu 3 šířek hráče**
+= 1,8 m; raketa exploduje i při dopadu na zem a zraňuje i střelce — pozor na
+vlastní rakety), 6 Zlatý kanón (jen po sebrání z odměny). Boti používají
+sloty 1–3.
+
+**Sečné zbraně** (`SLASH_TYPES` + `CATEGORY_SLASH` + `SLASH_TRAJECTORIES`) — mají
+**vysoký damage** (2.4–3.5× základu postavy) a **INSTANT KILL při zásahu
+obličeje, hlavy nebo srdce**:
 
 | Parametr | Význam |
 |---|---|
@@ -256,8 +289,12 @@ Katalog: [src/data/assetsCatalog.js](src/data/assetsCatalog.js), modely:
 - Každý asset má **vlastní health**. Zničení → **náhodná odměna**
   ([src/game/rewards.js](src/game/rewards.js), konfigurovatelný seznam):
   10–100 % zdraví, +10–100 armor (30 s), 2–4× damage (10 s), dočasná nesmrtelnost,
-  precise shot (všechny zásahy headshot), speciální zbraň (zlaté střely, 3× damage,
-  bez munice).
+  precise shot (všechny zásahy headshot), zlatý mód zbraně, **náboje do zbraně 2/3/4**
+  a **ZBRAŇ 4 — Zlatý kanón** (slot 4, klávesa `4`; vysoký damage, armor pen 60 %).
+- **Zabití jiného hráče/bota** = automaticky plná munice + **10–50 HP** + **10–50
+  armor** (kill bonus, `grantKillBonus`).
+- Pohyblivé assety **neprochází sebou** — menší se odrazí od většího (hmotnost
+  podle objemu), statické se nehýbou.
 - Zabití **chráněného** NPC (dítě, pes, zdravotník) → **penalizace**: freeze 2–10 s,
   self damage 10–80 %, no aim 2–10 s, blurry vision 2–10 s (rozmazaný HUD),
   no gun 2–10 s. Chráněná NPC jdou vypnout v Nastavení.
@@ -300,6 +337,14 @@ entity), jinak lobby zobrazí upozornění a hra zůstane u botů:
 Transport: [src/multiplayer/transport.js](src/multiplayer/transport.js),
 vykreslování protihráčů: [RemotePlayers.jsx](src/components/game/RemotePlayers.jsx).
 Online hra zatím podporuje mód Deathmatch.
+
+## Kreslený styl (toon)
+
+Modely postav a assetů používají **cel-shading** (MeshToonMaterial se čtyřstupňovým
+gradientem — [src/game/toon.jsx](src/game/toon.jsx)) a **zaoblenou kreslenou
+geometrii** v duchu klasických animovaných grotesek: kapslové končetiny, kulaté
+„rukavicové" dlaně, velké boty, hruškovité trupy, velké hlavy, zvířata s velkýma
+očima a čumáky. Všechny designy jsou původní — žádné převzaté postavy.
 
 ## Vizuální upgrade (nad rámec originálu)
 

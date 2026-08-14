@@ -134,6 +134,42 @@ export default function MapDetail() {
       {crosswalks.map((s, i) => (
         <Crosswalk key={`cw${i}`} {...s} />
       ))}
+      {/* parkoviště: asfalt + bílé čáry stání kolmo na osu */}
+      {(map.parkingLots || []).map((lot, i) => {
+        const along = lot.axis === 'z' ? lot.d : lot.w;
+        const count = Math.max(1, Math.floor(along / 2.4));
+        const lines = [];
+        for (let k = 0; k <= count; k++) {
+          const offset = -along / 2 + k * 2.4;
+          lines.push(offset);
+        }
+        return (
+          <group key={`lot${i}`} position={[lot.x, 0, lot.z]}>
+            <mesh position={[0, 0.012, 0]} receiveShadow>
+              <boxGeometry args={[lot.w, 0.02, lot.d]} />
+              <meshStandardMaterial color="#34343a" roughness={1} />
+            </mesh>
+            {lines.map((offset, k) => (
+              <mesh
+                key={k}
+                position={
+                  lot.axis === 'z' ? [0, 0.028, offset] : [offset, 0.028, 0]
+                }
+              >
+                <boxGeometry
+                  args={
+                    lot.axis === 'z'
+                      ? [lot.w * 0.85, 0.008, 0.1]
+                      : [0.1, 0.008, lot.d * 0.85]
+                  }
+                />
+                <meshStandardMaterial color="#e8e8e8" />
+              </mesh>
+            ))}
+          </group>
+        );
+      })}
+
     </group>
   );
 }

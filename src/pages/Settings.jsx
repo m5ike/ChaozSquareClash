@@ -235,6 +235,27 @@ export default function Settings() {
           </div>
         ))}
 
+        <div className="rounded-lg px-4 py-3" style={{ background: 'rgba(255,255,255,0.05)' }}>
+          <div className="flex items-center justify-between mb-2">
+            <div>
+              <div className="text-sm font-bold">Min. vzdálenost spawnů</div>
+              <div className="text-xs text-white/40">
+                Rozestup mezi spawnovanými objekty (nic se neobjeví v kolizi)
+              </div>
+            </div>
+            <div className="text-sm text-white/60">{(worldCfg.minSpawnDistance ?? 2).toFixed(1)} m</div>
+          </div>
+          <input
+            type="range"
+            min="1"
+            max="6"
+            step="0.5"
+            value={worldCfg.minSpawnDistance ?? 2}
+            onChange={(e) => updateWorldCfg('minSpawnDistance', parseFloat(e.target.value))}
+            className="w-full accent-purple-500"
+          />
+        </div>
+
         <div
           className="flex items-center justify-between rounded-lg px-4 py-3"
           style={{ background: 'rgba(255,255,255,0.05)' }}

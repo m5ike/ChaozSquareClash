@@ -50,5 +50,13 @@ export const ARENA = { width: 40, depth: 30 };
 // Respawn hráče po smrti (sekundy)
 export const RESPAWN_SECONDS = 5;
 
-// Cílové skóre pro výhru
+// Cílové skóre pro výhru (výchozí; za běhu čti TUNING.winScore)
 export const WIN_SCORE = 40;
+
+// Mutovatelné herní ladění — administrace (/admin) ho přepisuje za běhu.
+export const TUNING = {
+  winScore: WIN_SCORE,
+  respawnSeconds: RESPAWN_SECONDS,
+  projectilePoolSize: PROJECTILE_POOL_SIZE,
+  projectileTtl: PROJECTILE_TTL,
+};

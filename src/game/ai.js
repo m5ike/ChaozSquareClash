@@ -92,7 +92,7 @@ export function computeSteering(pos, target, obstacles) {
 }
 
 // Krycí bod: místo za překážkou z pohledu hrozby (threat), nejbližší k botovi.
-export function findCoverSpot(pos, threat, obstacles) {
+export function findCoverSpot(pos, threat, obstacles, bounds = { x: 17, z: 12.5 }) {
   let best = null;
   let bestDist = Infinity;
   for (const box of obstacles) {
@@ -104,7 +104,7 @@ export function findCoverSpot(pos, threat, obstacles) {
     const spotX = box.cx + (dirX / len) * (Math.max(box.halfW, box.halfD) + 0.9);
     const spotZ = box.cz + (dirZ / len) * (Math.max(box.halfW, box.halfD) + 0.9);
     // krycí bod musí být uvnitř arény
-    if (Math.abs(spotX) > 17 || Math.abs(spotZ) > 12.5) continue;
+    if (Math.abs(spotX) > bounds.x || Math.abs(spotZ) > bounds.z) continue;
     const d = Math.hypot(spotX - pos.x, spotZ - pos.z);
     if (d < bestDist) {
       bestDist = d;

@@ -4,7 +4,7 @@ import { Sky } from '@react-three/drei';
 import { bus } from '@/game/events.js';
 import { gameState, resetGameState } from '@/game/state.js';
 import { createModeState } from '@/game/modes.js';
-import { getActiveMode, getActiveSession } from '@/game/lobby.js';
+import { getActiveMode, getActiveSession, getArena } from '@/game/lobby.js';
 import { initAudio, startAmbient } from '@/game/audio.js';
 import CityMap from '@/components/game/CityMap.jsx';
 import Player from '@/components/game/Player.jsx';
@@ -24,6 +24,8 @@ import WorldAssets from '@/components/game/WorldAssets.jsx';
 // V multiplayeru nahrazují boty vzdálení hráči.
 export default function GameScene() {
   const session = getActiveSession();
+  const arena = getArena();
+  const shadowHalf = Math.max(30, arena.width / 2 + 6);
 
   // Stav herního módu musí existovat dřív, než se mountnou Bots (render-phase init)
   if (!gameState.mode) {
@@ -64,10 +66,10 @@ export default function GameScene() {
         color="#ffd9a0"
         castShadow
         shadow-mapSize={[2048, 2048]}
-        shadow-camera-left={-30}
-        shadow-camera-right={30}
-        shadow-camera-top={30}
-        shadow-camera-bottom={-30}
+        shadow-camera-left={-shadowHalf}
+        shadow-camera-right={shadowHalf}
+        shadow-camera-top={shadowHalf}
+        shadow-camera-bottom={-shadowHalf}
         shadow-camera-near={1}
         shadow-camera-far={80}
         shadow-bias={-0.0005}

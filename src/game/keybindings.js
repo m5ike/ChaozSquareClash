@@ -63,6 +63,24 @@ export const KEY_BINDING_DEFS = [
     default: ['Digit3'],
   },
   {
+    name: 'weapon4',
+    label: 'Zbraň 4',
+    desc: 'Samopal',
+    default: ['Digit4'],
+  },
+  {
+    name: 'weapon5',
+    label: 'Zbraň 5',
+    desc: 'Raketomet',
+    default: ['Digit5'],
+  },
+  {
+    name: 'weapon6',
+    label: 'Zbraň 6',
+    desc: 'Zlatý kanón (po sebrání)',
+    default: ['Digit6'],
+  },
+  {
     name: 'reload',
     label: 'Přebít',
     desc: 'Výměna zásobníku',

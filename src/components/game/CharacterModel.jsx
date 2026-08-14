@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { getFaceTexture, getExpressionTexture } from '@/game/faces.js';
 import { getProtection } from '@/game/hitZones.js';
+import { ToonMat } from '@/game/toon.jsx';
 import WeaponModel from '@/components/game/WeaponModel.jsx';
 
 // Kloubový low-poly humanoid ve stylu retro Quake/Minecraft.
@@ -175,73 +176,78 @@ export default function CharacterModel({ character, animRef, team = null, outfit
       {/* Nohy — pivot v kyčli */}
       <group ref={legLRef} position={[-0.12, 0.6, 0]}>
         <mesh castShadow position={[0, -0.3, 0]}>
-          <boxGeometry args={[0.17, 0.6, 0.17]} />
-          <meshStandardMaterial color={outfit.pants} />
+          <capsuleGeometry args={[0.075, 0.42, 4, 10]} />
+          <ToonMat color={outfit.pants} />
         </mesh>
-        <mesh castShadow position={[0, -0.57, 0.03]}>
-          <boxGeometry args={[0.18, 0.08, 0.24]} />
-          <meshStandardMaterial color={SHOE} />
+        <mesh castShadow position={[0, -0.57, 0.05]} scale={[1, 0.62, 1.5]}>
+          <sphereGeometry args={[0.11, 10, 8]} />
+          <ToonMat color={SHOE} />
         </mesh>
       </group>
       <group ref={legRRef} position={[0.12, 0.6, 0]}>
         <mesh castShadow position={[0, -0.3, 0]}>
-          <boxGeometry args={[0.17, 0.6, 0.17]} />
-          <meshStandardMaterial color={outfit.pants} />
+          <capsuleGeometry args={[0.075, 0.42, 4, 10]} />
+          <ToonMat color={outfit.pants} />
         </mesh>
-        <mesh castShadow position={[0, -0.57, 0.03]}>
-          <boxGeometry args={[0.18, 0.08, 0.24]} />
-          <meshStandardMaterial color={SHOE} />
+        <mesh castShadow position={[0, -0.57, 0.05]} scale={[1, 0.62, 1.5]}>
+          <sphereGeometry args={[0.11, 10, 8]} />
+          <ToonMat color={SHOE} />
         </mesh>
       </group>
 
-      {/* Trup */}
-      <mesh castShadow position={[0, 0.86, 0]}>
-        <boxGeometry args={[0.46, 0.52, 0.26]} />
-        <meshStandardMaterial color={outfit.torso} />
+      {/* Trup — kreslený hruškovitý tvar */}
+      <mesh castShadow position={[0, 0.86, 0]} scale={[1, 1.15, 0.82]}>
+        <sphereGeometry args={[0.26, 14, 12]} />
+        <ToonMat color={outfit.torso} />
+      </mesh>
+      {/* bříško/hrudní světlejší plocha */}
+      <mesh position={[0, 0.84, 0.13]} scale={[0.75, 1, 0.5]}>
+        <sphereGeometry args={[0.19, 12, 10]} />
+        <ToonMat color={outfit.accent || '#f2f2f2'} />
       </mesh>
       {/* Kravata / akcent na hrudi */}
       {outfit.tie && (
-        <mesh position={[0, 0.9, 0.135]}>
-          <boxGeometry args={[0.08, 0.3, 0.02]} />
-          <meshStandardMaterial color={outfit.accent} />
+        <mesh position={[0, 0.92, 0.21]} rotation={[0.15, 0, 0]}>
+          <coneGeometry args={[0.05, 0.26, 4]} />
+          <ToonMat color={outfit.accent} />
         </mesh>
       )}
 
       {/* Paže — pivot v rameni; pravá drží zbraň */}
       <group ref={armLRef} position={[-0.3, 1.08, 0]}>
         <mesh castShadow position={[0, -0.22, 0]}>
-          <boxGeometry args={[0.13, 0.44, 0.13]} />
-          <meshStandardMaterial color={outfit.sleeve} />
+          <capsuleGeometry args={[0.06, 0.34, 4, 10]} />
+          <ToonMat color={outfit.sleeve} />
         </mesh>
         {/* týmová páska (TDM/CTF) */}
         {team && (
           <mesh position={[0, -0.1, 0]}>
-            <boxGeometry args={[0.15, 0.08, 0.15]} />
-            <meshStandardMaterial color={team === 'red' ? '#e02020' : '#2060e0'} />
+            <torusGeometry args={[0.075, 0.03, 6, 12]} />
+            <ToonMat color={team === 'red' ? '#e02020' : '#2060e0'} />
           </mesh>
         )}
         <mesh castShadow position={[0, -0.48, 0]}>
-          <boxGeometry args={[0.12, 0.12, 0.12]} />
-          <meshStandardMaterial color={SKIN} />
+          <sphereGeometry args={[0.09, 10, 8]} />
+          <ToonMat color={SKIN} />
         </mesh>
       </group>
       <group ref={armRRef} position={[0.3, 1.08, 0]}>
         <mesh castShadow position={[0, -0.22, 0]}>
-          <boxGeometry args={[0.13, 0.44, 0.13]} />
-          <meshStandardMaterial color={outfit.sleeve} />
+          <capsuleGeometry args={[0.06, 0.34, 4, 10]} />
+          <ToonMat color={outfit.sleeve} />
         </mesh>
         <mesh castShadow position={[0, -0.48, 0]}>
-          <boxGeometry args={[0.12, 0.12, 0.12]} />
-          <meshStandardMaterial color={SKIN} />
+          <sphereGeometry args={[0.09, 10, 8]} />
+          <ToonMat color={SKIN} />
         </mesh>
         {/* prostředníček / palec — viditelné jen během gesta */}
         <mesh ref={fingerRef} position={[0, -0.6, 0]} visible={false}>
-          <boxGeometry args={[0.035, 0.12, 0.035]} />
-          <meshStandardMaterial color={SKIN} />
+          <capsuleGeometry args={[0.022, 0.09, 3, 8]} />
+          <ToonMat color={SKIN} />
         </mesh>
         <mesh ref={thumbRef} position={[-0.08, -0.5, 0]} rotation={[0, 0, 0.5]} visible={false}>
-          <boxGeometry args={[0.04, 0.11, 0.04]} />
-          <meshStandardMaterial color={SKIN} />
+          <capsuleGeometry args={[0.025, 0.08, 3, 8]} />
+          <ToonMat color={SKIN} />
         </mesh>
         {/* Zbraň postavy v pravé ruce */}
         {weapon && (
@@ -251,8 +257,16 @@ export default function CharacterModel({ character, animRef, team = null, outfit
         )}
       </group>
 
-      {/* Hlava — obličej z portrétu na předni straně (+z), zbytek pleť/vlasy */}
-      <mesh castShadow position={[0, 1.29, 0]}>
+      {/* Hlava — obličej z portrétu na předni straně (+z); větší = kreslenější */}
+      <mesh position={[-0.19, 1.31, 0]}>
+        <sphereGeometry args={[0.05, 8, 8]} />
+        <ToonMat color={SKIN} />
+      </mesh>
+      <mesh position={[0.19, 1.31, 0]}>
+        <sphereGeometry args={[0.05, 8, 8]} />
+        <ToonMat color={SKIN} />
+      </mesh>
+      <mesh castShadow position={[0, 1.31, 0]} scale={1.18}>
         <boxGeometry args={[0.3, 0.3, 0.3]} />
         <meshStandardMaterial attach="material-0" color={SKIN} />
         <meshStandardMaterial attach="material-1" color={SKIN} />

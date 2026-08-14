@@ -13,7 +13,6 @@ import AssetModel from '@/components/game/AssetModel.jsx';
 // s pohybem podle podkladu a typu cesty, vlastním zdravím, odměnami za
 // zničení, penalizacemi za chráněné NPC a respawnem do 10 sekund.
 
-const ARENA_LIMIT = { x: 16, z: 12 };
 const rand = (min, max) => min + Math.random() * (max - min);
 
 // Náhodný bod v obdélníku povrchu (s okrajem)
@@ -41,9 +40,10 @@ function insideObstacle(grid, x, z) {
   return false;
 }
 
-// Volná pozice: na povrchu (nebo kdekoli v aréně) mimo překážky a střed
-function pickSpot(map, grid, surface) {
-  for (let attempt = 0; attempt < 24; attempt++) {
+// Volná pozice: na povrchu (nebo kdekoli v aréně) mimo překážky, střed,
+// hráče a ostatní už umístěné assety (nastavitelná minimální vzdálenost).
+function pickSpot(map, grid, surface, limit, placed = [], minDist = 2) {
+  for (let attempt = 0; attempt < 40; attempt++) {
     const rects = rectsForSurface(map, surface);
     let p;
     let rect = null;
@@ -51,17 +51,48 @@ function pickSpot(map, grid, surface) {
       rect = rects[(Math.random() * rects.length) | 0];
       p = pointInRect(rect);
     } else {
-      p = { x: rand(-ARENA_LIMIT.x, ARENA_LIMIT.x), z: rand(-ARENA_LIMIT.z, ARENA_LIMIT.z) };
+      p = { x: rand(-limit.x, limit.x), z: rand(-limit.z, limit.z) };
     }
     const nearCenter = Math.hypot(p.x, p.z) < 3.2 || Math.hypot(p.x, p.z - 6) < 2.8;
     const nearSpawn = Math.hypot(p.x, p.z - 10) < 2.5;
-    if (!nearCenter && !nearSpawn && !insideObstacle(grid, p.x, p.z)) return { ...p, rect };
+    if (nearCenter || nearSpawn || insideObstacle(grid, p.x, p.z)) continue;
+    // minimální rozestup od už umístěných assetů
+    let tooClose = false;
+    for (const other of placed) {
+      if (Math.hypot(other.x - p.x, other.z - p.z) < minDist) {
+        tooClose = true;
+        break;
+      }
+    }
+    if (!tooClose) return { ...p, rect };
   }
-  return { x: rand(-14, 14), z: rand(-10, 10), rect: null };
+  return { x: rand(-limit.x * 0.8, limit.x * 0.8), z: rand(-limit.z * 0.8, limit.z * 0.8), rect: null };
+}
+
+// Parkovací stání z parkovišť mapy (řada pozic podél osy parkoviště)
+function buildParkingStalls(map) {
+  const stalls = [];
+  for (const lot of map.parkingLots || []) {
+    const along = lot.axis === 'z' ? lot.d : lot.w;
+    const count = Math.max(1, Math.floor(along / 2.4));
+    for (let i = 0; i < count; i++) {
+      const offset = -along / 2 + 1.2 + i * 2.4;
+      stalls.push({
+        x: lot.axis === 'z' ? lot.x : lot.x + offset,
+        z: lot.axis === 'z' ? lot.z + offset : lot.z,
+        yaw: lot.axis === 'z' ? Math.PI / 2 : 0,
+      });
+    }
+  }
+  return stalls;
 }
 
 export default function WorldAssets() {
   const map = useMemo(() => getActiveMap(), []);
+  const ARENA_LIMIT = useMemo(() => {
+    const a = map.arena || { width: 40, depth: 30 };
+    return { x: a.width / 2 - 2, z: a.depth / 2 - 2 };
+  }, [map]);
   const grid = useMemo(() => buildObstacleGrid(map, 0.4), [map]);
   const config = useMemo(() => getWorldConfig(map), [map]);
   const groupRefs = useRef([]);
@@ -70,11 +101,26 @@ export default function WorldAssets() {
   // Sestavení instancí (jednou při mountu)
   const instances = useMemo(() => {
     const list = [];
+    const parkingStalls = buildParkingStalls(map);
+    const minDist = config.minSpawnDistance ?? 2;
     const addInstance = (typeId) => {
       const def = ASSET_TYPES[typeId];
       if (!def) return;
       if (def.protected && config.protectedEnabled === false) return;
-      const spot = pickSpot(map, grid, def.surface);
+      // zaparkovaná auta přednostně do volných parkovacích stání
+      let spot = null;
+      let stallYaw = null;
+      if (typeId === 'zaparkovane_auto' && parkingStalls.length) {
+        const free = parkingStalls.filter(
+          (st) => !list.some((o) => Math.hypot(o.x - st.x, o.z - st.z) < 1.5)
+        );
+        if (free.length) {
+          const st = free[(Math.random() * free.length) | 0];
+          spot = { x: st.x, z: st.z, rect: null };
+          stallYaw = st.yaw;
+        }
+      }
+      if (!spot) spot = pickSpot(map, grid, def.surface, ARENA_LIMIT, list, minDist);
       const variant = def.variants?.length ? (Math.random() * def.variants.length) | 0 : 0;
       list.push({
         key: `${typeId}-${list.length}-${(Math.random() * 1e6) | 0}`,
@@ -83,7 +129,7 @@ export default function WorldAssets() {
         variant,
         x: spot.x,
         z: spot.z,
-        yaw: rand(0, Math.PI * 2),
+        yaw: stallYaw ?? rand(0, Math.PI * 2),
         home: { x: spot.x, z: spot.z },
         rect: spot.rect,
         laneAxis: spot.rect ? (spot.rect.w >= spot.rect.d ? 'x' : 'z') : 'x',
@@ -114,7 +160,7 @@ export default function WorldAssets() {
       }
     }
     return list;
-  }, [map, grid, config]);
+  }, [map, grid, config, ARENA_LIMIT]);
 
   // Zpřístupnění pro Projectiles (poškozování zásahy)
   useEffect(() => {
@@ -161,14 +207,27 @@ export default function WorldAssets() {
           group.visible = false;
         }
         if (now >= inst.respawnAt) {
-          inst.alive = true;
-          inst.health = inst.def.health;
-          inst.dyingT = -1;
-          inst.x = inst.home.x;
-          inst.z = inst.home.z;
-          group.visible = true;
-          group.rotation.z = 0;
-          group.position.y = 0;
+          // respawn jen když je místo volné (jiné assety + hráč)
+          const minDist = config.minSpawnDistance ?? 2;
+          const blocked =
+            instances.some(
+              (o) =>
+                o !== inst && o.alive && Math.hypot(o.x - inst.home.x, o.z - inst.home.z) < minDist
+            ) ||
+            Math.hypot(gameState.playerPos.x - inst.home.x, gameState.playerPos.z - inst.home.z) <
+              minDist + 0.5;
+          if (blocked) {
+            inst.respawnAt = now + 1; // zkus to za sekundu
+          } else {
+            inst.alive = true;
+            inst.health = inst.def.health;
+            inst.dyingT = -1;
+            inst.x = inst.home.x;
+            inst.z = inst.home.z;
+            group.visible = true;
+            group.rotation.z = 0;
+            group.position.y = 0;
+          }
         }
         continue;
       }
@@ -303,6 +362,63 @@ export default function WorldAssets() {
       anim.speed = Math.min(1, moving / 2);
       anim.pose = pose;
       anim.wheelSpin = moving * 2.2; // úhlová rychlost kol (rad/s)
+    }
+
+    // --- Odtlačení od hráče: žádný asset se nesmí prolnout s hráčem ------
+    for (const inst of instances) {
+      if (!inst.alive) continue;
+      const size = inst.def.size || { w: 1, h: 1, d: 1 };
+      const radius = Math.max(size.w, size.d) / 2 + 0.55;
+      const dx = inst.x - gameState.playerPos.x;
+      const dz = inst.z - gameState.playerPos.z;
+      const dist = Math.hypot(dx, dz);
+      if (dist > 0.001 && dist < radius) {
+        const push = radius - dist;
+        inst.x += (dx / dist) * push;
+        inst.z += (dz / dist) * push;
+        inst.dir *= -1;
+        inst.heading += Math.PI;
+        inst.target = null;
+      }
+    }
+
+    // --- Kolize assetů mezi sebou: menší se odrazí od většího -------------
+    // „Hmotnost" ~ objem bounding boxu; statické assety se nehýbou nikdy.
+    for (let a = 0; a < instances.length; a++) {
+      const A = instances[a];
+      if (!A.alive) continue;
+      const sizeA = A.def.size || { w: 1, h: 1, d: 1 };
+      const radiusA = Math.max(sizeA.w, sizeA.d) / 2;
+      for (let b = a + 1; b < instances.length; b++) {
+        const B = instances[b];
+        if (!B.alive) continue;
+        const sizeB = B.def.size || { w: 1, h: 1, d: 1 };
+        const radiusB = Math.max(sizeB.w, sizeB.d) / 2;
+        let dx = B.x - A.x;
+        let dz = B.z - A.z;
+        const dist = Math.hypot(dx, dz);
+        const minDist = radiusA + radiusB;
+        if (dist >= minDist || dist === 0) continue;
+        // menší (lehčí) ustupuje; statika je nekonečně těžká
+        const massA = A.def.moveType === 'static' ? Infinity : sizeA.w * sizeA.h * sizeA.d;
+        const massB = B.def.moveType === 'static' ? Infinity : sizeB.w * sizeB.h * sizeB.d;
+        if (massA === Infinity && massB === Infinity) continue;
+        const lighter = massA <= massB ? A : B;
+        const push = minDist - dist + 0.02;
+        dx /= dist;
+        dz /= dist;
+        const sign = lighter === B ? 1 : -1;
+        lighter.x += dx * push * sign;
+        lighter.z += dz * push * sign;
+        lighter.x = Math.max(-ARENA_LIMIT.x, Math.min(ARENA_LIMIT.x, lighter.x));
+        lighter.z = Math.max(-ARENA_LIMIT.z, Math.min(ARENA_LIMIT.z, lighter.z));
+        // odraz: otoč směr pohybu lehčího
+        lighter.dir *= -1;
+        lighter.heading += Math.PI + (Math.random() - 0.5) * 0.6;
+        lighter.target = null;
+        const g = groupRefs.current[instances.indexOf(lighter)];
+        if (g) g.position.set(lighter.x, g.position.y, lighter.z);
+      }
     }
   });
 

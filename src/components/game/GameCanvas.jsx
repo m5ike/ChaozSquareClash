@@ -7,7 +7,7 @@ import { EffectComposer, Bloom, Vignette } from '@react-three/postprocessing';
 import { bus } from '@/game/events.js';
 import { KEYBOARD_MAP } from '@/game/keybindings.js';
 import { resolveQuality } from '@/game/quality.js';
-import { getActiveMap } from '@/game/lobby.js';
+import { getActiveMap, getArena } from '@/game/lobby.js';
 import GameScene from '@/components/game/GameScene.jsx';
 
 // Canvas s fyzikou — pauzuje simulaci při game-over a ztrátě fokusu.
@@ -53,7 +53,8 @@ export default function GameCanvas({ onReady }) {
         gl={{ antialias: false, powerPreference: 'high-performance' }}
         onCreated={(state) => {
           state.scene.background = new Color(map.palette.sky);
-          state.scene.fog = new Fog(map.palette.fog, 15, 55);
+          const arena = getArena();
+          state.scene.fog = new Fog(map.palette.fog, 15, Math.max(55, arena.width * 1.15));
           // teplejší filmová expozice (ACES tone mapping je výchozí)
           state.gl.toneMappingExposure = 1.12;
           if (onReady) onReady(state);

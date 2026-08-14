@@ -3,6 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import { bus } from '@/game/events.js';
 import { gameState } from '@/game/state.js';
 import { getModeById } from '@/game/modes.js';
+import { getArena } from '@/game/lobby.js';
 
 // Systémy herních módů: logika + minimalistické vizuály.
 // gameState.mode vytváří GameScene při mountu/restartu (createModeState).
@@ -93,8 +94,14 @@ function KOTHSystem() {
 }
 
 // ---------- Ukořistit vlajku ----------
-const RED_BASE = { x: 0, z: -12 };
-const BLUE_BASE = { x: 0, z: 12 };
+// Základny na okrajích arény (sever/jih), dopočítávají se z aktivní mapy
+function getBases() {
+  const arena = getArena();
+  return {
+    RED_BASE: { x: 0, z: -(arena.depth / 2 - 3) },
+    BLUE_BASE: { x: 0, z: arena.depth / 2 - 3 },
+  };
+}
 
 function FlagVisual({ color, groupRef }) {
   return (
@@ -114,6 +121,7 @@ function FlagVisual({ color, groupRef }) {
 function CTFSystem() {
   const redFlagRef = useRef();
   const blueFlagRef = useRef();
+  const { RED_BASE, BLUE_BASE } = getBases();
 
   // Smrt hráče s vlajkou → vlajka se vrací na základnu
   useEffect(() => {

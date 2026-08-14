@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { bus } from '@/game/events.js';
 import { input, gameState, getSelectedCharacter } from '@/game/state.js';
-import { RESPAWN_SECONDS, WIN_SCORE } from '@/game/constants.js';
+import { RESPAWN_SECONDS, WIN_SCORE, TUNING } from '@/game/constants.js';
 import { getBindings, formatKeyLabel } from '@/game/keybindings.js';
 import { getModeById } from '@/game/modes.js';
 import { getActiveSession } from '@/game/lobby.js';
@@ -96,9 +96,9 @@ export default function Play() {
       setScore(value);
       // Deathmatch: výhra při dosažení cílového skóre
       const mode = gameState.mode;
-      if ((mode?.id ?? 'dm') === 'dm' && value >= WIN_SCORE && mode && !mode.finished) {
+      if ((mode?.id ?? 'dm') === 'dm' && value >= TUNING.winScore && mode && !mode.finished) {
         mode.finished = true;
-        bus.emit('game-over', { won: true, reason: `🏆 Dosáhl jsi ${WIN_SCORE} bodů!` });
+        bus.emit('game-over', { won: true, reason: `🏆 Dosáhl jsi ${TUNING.winScore} bodů!` });
       }
     };
     const onModeEvent = (info) => {
@@ -148,6 +148,7 @@ export default function Play() {
       setPhase('playing');
       setHealth(maxHealth);
     };
+    const onLoadoutChanged = () => forceScoreboardTick((t) => t + 1);
     const onWeaponSwitched = (weapon) => {
       if (character?.weapons) {
         const index = character.weapons.indexOf(weapon);
@@ -170,6 +171,7 @@ export default function Play() {
     bus.on('player-died', onPlayerDied);
     bus.on('player-respawned', onPlayerRespawned);
     bus.on('weapon-switched', onWeaponSwitched);
+    bus.on('loadout-changed', onLoadoutChanged);
     const onPowerActivated = (info) => {
       setPowerActive(true);
       setKillfeed((feed) => [`✨ ${info?.name || 'Schopnost'} aktivována!`, ...feed].slice(0, 5));
@@ -192,6 +194,7 @@ export default function Play() {
       bus.off('player-died', onPlayerDied);
       bus.off('player-respawned', onPlayerRespawned);
       bus.off('weapon-switched', onWeaponSwitched);
+      bus.off('loadout-changed', onLoadoutChanged);
       bus.off('power-activated', onPowerActivated);
     };
   }, [character, maxHealth]);
@@ -290,6 +293,9 @@ export default function Play() {
       if (bindings.weapon1?.includes(event.code)) input.weaponSwitch = 0;
       if (bindings.weapon2?.includes(event.code)) input.weaponSwitch = 1;
       if (bindings.weapon3?.includes(event.code)) input.weaponSwitch = 2;
+      if (bindings.weapon4?.includes(event.code)) input.weaponSwitch = 3;
+      if (bindings.weapon5?.includes(event.code)) input.weaponSwitch = 4;
+      if (bindings.weapon6?.includes(event.code)) input.weaponSwitch = 5;
       if (bindings.scoreboard?.includes(event.code)) {
         event.preventDefault();
         setShowScoreboard((prev) => !prev);
@@ -678,7 +684,7 @@ export default function Play() {
               className="text-white/50 text-xs px-2 py-1 rounded-lg flex items-center"
               style={{ background: 'rgba(0,0,0,0.3)' }}
             >
-              {totalPlayers}/{WIN_SCORE}
+              {totalPlayers}/{TUNING.winScore}
             </div>
           </div>
 
@@ -1075,7 +1081,7 @@ export default function Play() {
                   <div className="text-white font-bold mb-3 text-sm">
                     🏆 Scoreboard{' '}
                     <span className="text-white/40">
-                      ({totalPlayers}/{WIN_SCORE})
+                      ({totalPlayers}/{TUNING.winScore})
                     </span>
                   </div>
                   <table className="w-full text-sm text-white">

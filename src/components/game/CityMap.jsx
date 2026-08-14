@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { RigidBody, CuboidCollider } from '@react-three/rapier';
-import { ARENA } from '@/game/constants.js';
 import { getActiveMap } from '@/game/lobby.js';
+import { ToonMat } from '@/game/toon.jsx';
 import { useCobblestoneTexture, useBuildingTextures } from '@/game/textures.js';
 
 // Dominanta náměstí podle mapy
@@ -102,6 +102,7 @@ function Centerpiece({ type, palette }) {
 // Statická mapa náměstí — jeden fixed RigidBody, geometrie z aktivní mapy.
 export default function CityMap() {
   const map = useMemo(() => getActiveMap(), []);
+  const ARENA = map.arena || { width: 40, depth: 30 };
   const palette = map.palette;
   const cobblestone = useCobblestoneTexture();
   const { facade, windows } = useBuildingTextures();
@@ -116,26 +117,26 @@ export default function CityMap() {
       <CuboidCollider args={[ARENA.width / 2, 0.5, ARENA.depth / 2]} position={[0, -0.5, 0]} />
 
       {/* obvodové zídky arény */}
-      <mesh position={[0, 0.75, -15]} castShadow receiveShadow>
+      <mesh position={[0, 0.75, -ARENA.depth / 2]} castShadow receiveShadow>
         <boxGeometry args={[ARENA.width, 1.5, 0.5]} />
         <meshStandardMaterial color={palette.wall} />
       </mesh>
-      <CuboidCollider args={[ARENA.width / 2, 0.75, 0.25]} position={[0, 0.75, -15]} />
-      <mesh position={[0, 0.75, 15]} castShadow receiveShadow>
+      <CuboidCollider args={[ARENA.width / 2, 0.75, 0.25]} position={[0, 0.75, -ARENA.depth / 2]} />
+      <mesh position={[0, 0.75, ARENA.depth / 2]} castShadow receiveShadow>
         <boxGeometry args={[ARENA.width, 1.5, 0.5]} />
         <meshStandardMaterial color={palette.wall} />
       </mesh>
-      <CuboidCollider args={[ARENA.width / 2, 0.75, 0.25]} position={[0, 0.75, 15]} />
-      <mesh position={[-20, 0.75, 0]} castShadow receiveShadow>
+      <CuboidCollider args={[ARENA.width / 2, 0.75, 0.25]} position={[0, 0.75, ARENA.depth / 2]} />
+      <mesh position={[-ARENA.width / 2, 0.75, 0]} castShadow receiveShadow>
         <boxGeometry args={[0.5, 1.5, ARENA.depth]} />
         <meshStandardMaterial color={palette.wall} />
       </mesh>
-      <CuboidCollider args={[0.25, 0.75, ARENA.depth / 2]} position={[-20, 0.75, 0]} />
-      <mesh position={[20, 0.75, 0]} castShadow receiveShadow>
+      <CuboidCollider args={[0.25, 0.75, ARENA.depth / 2]} position={[-ARENA.width / 2, 0.75, 0]} />
+      <mesh position={[ARENA.width / 2, 0.75, 0]} castShadow receiveShadow>
         <boxGeometry args={[0.5, 1.5, ARENA.depth]} />
         <meshStandardMaterial color={palette.wall} />
       </mesh>
-      <CuboidCollider args={[0.25, 0.75, ARENA.depth / 2]} position={[20, 0.75, 0]} />
+      <CuboidCollider args={[0.25, 0.75, ARENA.depth / 2]} position={[ARENA.width / 2, 0.75, 0]} />
 
       {/* budovy s fasádou a svítícími okny */}
       {map.buildings.map((building, i) => (
@@ -156,6 +157,33 @@ export default function CityMap() {
             args={[building.size[0] / 2, building.size[1] / 2, building.size[2] / 2]}
             position={building.pos}
           />
+          {/* obchod: pruhovaná markýza, vývěsní štít a výloha v přízemí */}
+          {building.shop && (
+            <group
+              position={[
+                building.pos[0],
+                0,
+                building.pos[2] + (building.pos[2] > 0 ? -1 : 1) * (building.size[2] / 2),
+              ]}
+            >
+              <mesh
+                position={[0, 2.4, (building.pos[2] > 0 ? -1 : 1) * 0.5]}
+                rotation={[building.pos[2] > 0 ? -0.5 : 0.5, 0, 0]}
+                castShadow
+              >
+                <boxGeometry args={[Math.min(4.5, building.size[0] * 0.7), 0.08, 1.1]} />
+                <ToonMat color={building.shop.awning} />
+              </mesh>
+              <mesh position={[0, 3.1, (building.pos[2] > 0 ? -1 : 1) * 0.12]}>
+                <boxGeometry args={[Math.min(3.6, building.size[0] * 0.55), 0.55, 0.12]} />
+                <ToonMat color={building.shop.sign} emissive={building.shop.sign} emissiveIntensity={0.35} />
+              </mesh>
+              <mesh position={[0, 1.15, (building.pos[2] > 0 ? -1 : 1) * 0.06]}>
+                <boxGeometry args={[Math.min(4, building.size[0] * 0.6), 1.6, 0.06]} />
+                <meshStandardMaterial color="#bfe0f0" emissive="#7fb0d0" emissiveIntensity={0.25} roughness={0.15} metalness={0.4} />
+              </mesh>
+            </group>
+          )}
         </group>
       ))}
 

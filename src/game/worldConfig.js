@@ -12,7 +12,7 @@ export function getWorldConfig(map) {
   } catch {
     stored = {};
   }
-  return { ...DEFAULT_WORLD_CONFIG, ...(map?.assetDefaults || {}), ...stored };
+  return { minSpawnDistance: 2, ...DEFAULT_WORLD_CONFIG, ...(map?.assetDefaults || {}), ...stored };
 }
 
 export function setWorldConfig(patch) {

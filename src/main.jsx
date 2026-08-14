@@ -1,7 +1,17 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from '@/App.jsx';
+import { applyAdminOverrides } from '@/admin/overrides.js';
+import { initEventRules } from '@/game/eventRules.js';
 import '@/index.css';
+
+// Administrátorské úpravy konfigurace se aplikují před startem hry
+try {
+  applyAdminOverrides();
+  initEventRules();
+} catch (error) {
+  console.warn('[admin] aplikace overrides selhala:', error);
+}
 
 // Dev-only shim pro skryté taby (headless/embedded prohlížeče): Chrome v nich
 // pozastavuje requestAnimationFrame i ResizeObserver, takže by se R3F canvas

@@ -11,3 +11,13 @@ export const DEFAULT_MAP_ID = 'praha';
 export function getMapById(id) {
   return MAPS.find((m) => m.id === id) ?? praha;
 }
+
+
+// Custom mapy z administrace — registrují se za běhu (applyAdminOverrides)
+export function registerCustomMaps(customMaps) {
+  for (const map of customMaps || []) {
+    const index = MAPS.findIndex((m) => m.id === map.id);
+    if (index >= 0) MAPS[index] = map;
+    else MAPS.push(map);
+  }
+}

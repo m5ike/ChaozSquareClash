@@ -12,6 +12,7 @@ import {
   randomHitZone,
 } from '@/game/hitZones.js';
 import { getSelectedCharacter } from '@/game/state.js';
+import { getArena } from '@/game/lobby.js';
 import { playerEffects } from '@/game/rewards.js';
 
 // Pool projektilů (hráč i boti): recyklované meshe, ruční pohyb a kolize
@@ -59,6 +60,8 @@ export default function Projectiles() {
       proj.shooterIndex = weapon.enemyIndex ?? -1;
       proj.shooterTeam = owner === 'player' ? 'blue' : weapon.team || 'red';
       proj.armorPen = weapon.armorPen ?? 0;
+      proj.splashRadius = weapon.splashRadius || 0;
+      proj.baseDamage = weapon.damage;
       proj.x = origin.x;
       proj.y = origin.y;
       proj.z = origin.z;
@@ -115,15 +118,17 @@ export default function Projectiles() {
       proj.x += proj.dx * step;
       proj.y += proj.dy * step;
       proj.z += proj.dz * step;
-      // mimo arénu (poloviny 40×30) nebo mimo výškové pásmo
+      // mimo arénu nebo mimo výškové pásmo (raketa při dopadu exploduje)
+      const arena = getArena();
       if (
-        proj.x < -20 ||
-        proj.x > 20 ||
-        proj.z < -15 ||
-        proj.z > 15 ||
+        proj.x < -arena.width / 2 ||
+        proj.x > arena.width / 2 ||
+        proj.z < -arena.depth / 2 ||
+        proj.z > arena.depth / 2 ||
         proj.y < 0.3 ||
         proj.y > 15
       ) {
+        if (proj.splashRadius > 0) explodeAt(proj.x, Math.max(0.3, proj.y), proj.z, proj);
         deactivate(i);
         continue;
       }
@@ -203,6 +208,7 @@ export default function Projectiles() {
                 });
               }
             }
+            if (proj.splashRadius > 0) explodeAt(proj.x, proj.y, proj.z, proj);
             deactivate(i);
             consumed = true;
             break;
@@ -242,6 +248,7 @@ export default function Projectiles() {
             const az = proj.z - asset.z;
             if (ax * ax + az * az < radius * radius && Math.abs(ay) < size.h / 2 + 0.4) {
               gameState.damageAsset(asset, proj.damage, proj.owner === 'player');
+              if (proj.splashRadius > 0) explodeAt(proj.x, proj.y, proj.z, proj);
               deactivate(i);
               consumed = true;
               break;
@@ -296,6 +303,83 @@ export default function Projectiles() {
       }
     }
   });
+
+  // Exploze rakety: poškození klesá lineárně od epicentra k okraji okruhu.
+  // Zasáhne boty (mimo tým střelce), hráče (i vlastní rakety!) a assety města.
+  function explodeAt(x, y, z, proj) {
+    const radius = proj.splashRadius;
+    bus.emit('explosion', { x, y, z, radius });
+    // boti
+    for (let e = 0; e < gameState.enemies.length; e++) {
+      const enemy = gameState.enemies[e];
+      if (!enemy?.alive || !enemy.body) continue;
+      if (enemy.team === proj.shooterTeam) continue;
+      if (enemy.invincibleTimer > 0) continue;
+      const pos = enemy.body.translation();
+      const dist = Math.hypot(pos.x - x, pos.y - y, pos.z - z);
+      if (dist > radius) continue;
+      const falloff = 1 - dist / radius;
+      const protection = getProtection(enemy.character);
+      const blocked = (protection.armorProtect || 0) * (1 - proj.armorPen);
+      const damage = proj.baseDamage * falloff * (1 - Math.min(0.95, blocked));
+      enemy.health -= damage;
+      bus.emit('hit-enemy', {
+        index: e,
+        damage,
+        crit: false,
+        part: 'exploze',
+        byPlayer: proj.owner === 'player',
+      });
+      if (enemy.health <= 0) {
+        enemy.alive = false;
+        enemy.respawnTimer = BOT.respawnTime;
+        if (gameState.botScores[e]) gameState.botScores[e].deaths++;
+        if (proj.owner === 'player') {
+          gameState.score++;
+          gameState.kills++;
+          if (gameState.mode?.id === 'tdm') gameState.mode.teamScores.blue++;
+          bus.emit('score-changed', gameState.score);
+          bus.emit('enemy-killed', { index: e, name: enemy.character?.name, crit: false, part: 'exploze' });
+        }
+      }
+    }
+    // hráč — vlastní raketa zraňuje i střelce (pozor na rocket jump!)
+    if (
+      gameState.phase === 'playing' &&
+      !gameState.playerInvincible &&
+      !gameState.gameSettings?.godMode
+    ) {
+      const dist = Math.hypot(
+        gameState.playerPos.x - x,
+        gameState.playerPos.y + 0.5 - y,
+        gameState.playerPos.z - z
+      );
+      if (dist <= radius) {
+        const falloff = 1 - dist / radius;
+        gameState.playerHealth -= proj.baseDamage * 0.6 * falloff;
+        bus.emit('health-changed', gameState.playerHealth);
+        if (gameState.playerHealth <= 0) {
+          gameState.phase = 'respawning';
+          gameState.playerRespawnTimer = RESPAWN_SECONDS;
+          gameState.deaths++;
+          bus.emit('player-died', {
+            killer: proj.owner === 'player' ? 'Vlastní raketa' : 'Raketa',
+          });
+        }
+      }
+    }
+    // assety města
+    if (gameState.worldAssets?.length && gameState.damageAsset) {
+      for (const asset of gameState.worldAssets) {
+        if (!asset.alive) continue;
+        const dist = Math.hypot(asset.x - x, asset.z - z);
+        if (dist <= radius + 0.5) {
+          const falloff = Math.max(0.15, 1 - dist / (radius + 0.5));
+          gameState.damageAsset(asset, proj.baseDamage * falloff, proj.owner === 'player');
+        }
+      }
+    }
+  }
 
   // Vrácení projektilu do poolu (schová mesh pod mapu)
   function deactivate(index) {

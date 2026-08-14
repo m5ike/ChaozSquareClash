@@ -78,11 +78,49 @@ export default function HitEffects() {
         }
       }
     };
+    // Exploze rakety: velká ohnivá koule + kruhový výtrysk jisker
+    const onExplosion = (info) => {
+      for (let i = 0; i < HIT_POOL_SIZE; i++) {
+        if (markerTimers.current[i] <= 0) {
+          markerTimers.current[i] = 0.4;
+          const marker = markerRefs.current[i];
+          if (marker) {
+            marker.visible = true;
+            marker.position.set(info.x, info.y, info.z);
+            marker.scale.setScalar(info.radius * 0.5);
+            marker._explosionScale = info.radius; // roste do plného okruhu
+          }
+          break;
+        }
+      }
+      let spawned = 0;
+      for (let i = 0; i < SPARK_POOL_SIZE && spawned < 14; i++) {
+        const spark = sparksRef.current[i];
+        if (spark.life > 0) continue;
+        spawned++;
+        const angle = (spawned / 14) * Math.PI * 2;
+        spark.maxLife = 0.35 + Math.random() * 0.25;
+        spark.life = spark.maxLife;
+        spark.x = info.x;
+        spark.y = info.y;
+        spark.z = info.z;
+        spark.vx = Math.cos(angle) * (3 + Math.random() * 3);
+        spark.vy = 2 + Math.random() * 3.5;
+        spark.vz = Math.sin(angle) * (3 + Math.random() * 3);
+        const mesh = sparkRefs.current[i];
+        if (mesh) {
+          mesh.visible = true;
+          mesh.material.color.set(SPARK_COLORS[(Math.random() * SPARK_COLORS.length) | 0]);
+        }
+      }
+    };
     bus.on('weapon-fired', onWeaponFired);
     bus.on('hit-enemy', onHitEnemy);
+    bus.on('explosion', onExplosion);
     return () => {
       bus.off('weapon-fired', onWeaponFired);
       bus.off('hit-enemy', onHitEnemy);
+      bus.off('explosion', onExplosion);
     };
   }, []);
 
@@ -110,9 +148,16 @@ export default function HitEffects() {
         markerTimers.current[i] -= delta;
         const marker = markerRefs.current[i];
         if (marker) {
-          const life = Math.max(0, markerTimers.current[i] / 0.25);
-          marker.scale.setScalar(0.1 + (1 - life) * 0.4);
-          marker.material.opacity = life * 0.8;
+          if (marker._explosionScale) {
+            const life = Math.max(0, markerTimers.current[i] / 0.4);
+            marker.scale.setScalar(marker._explosionScale * (1.2 - life * 0.7));
+            marker.material.opacity = life * 0.85;
+            if (markerTimers.current[i] <= 0) marker._explosionScale = null;
+          } else {
+            const life = Math.max(0, markerTimers.current[i] / 0.25);
+            marker.scale.setScalar(0.1 + (1 - life) * 0.4);
+            marker.material.opacity = life * 0.8;
+          }
         }
         if (markerTimers.current[i] <= 0 && marker) marker.visible = false;
       }

@@ -66,11 +66,75 @@ export const RANGED_DEFAULTS = {
 
 // --- Sečné zbraně -----------------------------------------------------------
 // Typ podle kategorie postavy; délka v procentech výšky postavy.
+// Sečné zbraně mají VYSOKÝ damage; headshot nebo zásah srdce = INSTANT KILL.
 export const SLASH_TYPES = {
-  sekera: { label: 'Sekera', lengthPct: 0.4, damageMult: 2.1, swingCooldown: 0.75, color: '#8a8f96' },
-  mec: { label: 'Meč', lengthPct: 0.45, damageMult: 1.8, swingCooldown: 0.6, color: '#c8d0da' },
-  nuz: { label: 'Nůž', lengthPct: 0.25, damageMult: 1.4, swingCooldown: 0.4, color: '#b8bec8' },
-  katana: { label: 'Katana', lengthPct: 0.5, damageMult: 1.9, swingCooldown: 0.55, color: '#dde4ee' },
+  sekera: { label: 'Sekera', lengthPct: 0.4, damageMult: 3.5, swingCooldown: 0.75, color: '#8a8f96' },
+  mec: { label: 'Meč', lengthPct: 0.45, damageMult: 3.0, swingCooldown: 0.6, color: '#c8d0da' },
+  nuz: { label: 'Nůž', lengthPct: 0.25, damageMult: 2.4, swingCooldown: 0.4, color: '#b8bec8' },
+  katana: { label: 'Katana', lengthPct: 0.5, damageMult: 3.2, swingCooldown: 0.55, color: '#dde4ee' },
+};
+
+// Samopal (slot 4): brutální kadence, vysoká přesnost, dlouhé přebíjení
+export const SMG_WEAPON = {
+  name: 'Samopal',
+  type: 'projectile',
+  model: 'samopal',
+  accuracy: 0.92,
+  armorPen: 0.15,
+  spread: 0.02,
+  magSize: 40,
+  magazines: 5,
+  fireCooldown: 0.01,
+  reloadCooldown: 3,
+  projectileSpeed: 32,
+  behavior: 'projectile',
+  damageScale: 0.55,
+  cooldown: 0.01,
+  speed: 32,
+  size: 0.07,
+};
+
+// Raketomet (slot 5): jedna raketa, exploze s klesajícím poškozením
+// v okruhu 3 šířek hráče (šířka hráče = 2 × poloměr kapsle 0.3 → 1.8 m).
+export const PLAYER_WIDTH = 0.6;
+export const ROCKET_WEAPON = {
+  name: 'Raketomet',
+  type: 'projectile',
+  model: 'raketomet',
+  accuracy: 0.8,
+  armorPen: 0.35,
+  spread: 0.06,
+  magSize: 1,
+  magazines: 5,
+  fireCooldown: 4,
+  reloadCooldown: 1,
+  projectileSpeed: 16,
+  behavior: 'rocket',
+  damageScale: 2.6,
+  cooldown: 4,
+  speed: 16,
+  size: 0.2,
+  splashRadius: PLAYER_WIDTH * 3, // 1.8 m
+};
+
+// Zbraň 6 — Zlatý kanón: padá jako odměna za zničení NPC (klávesa 6)
+export const SPECIAL_WEAPON = {
+  name: 'Zlatý kanón',
+  type: 'projectile',
+  accuracy: 0.95,
+  armorPen: 0.6,
+  spread: 0.015,
+  magSize: 5,
+  magazines: 2,
+  fireCooldown: 0.5,
+  reloadCooldown: 1.8,
+  projectileSpeed: 30,
+  behavior: 'projectile',
+  damage: 55,
+  cooldown: 0.5,
+  speed: 30,
+  color: '#ffd700',
+  size: 0.18,
 };
 
 const CATEGORY_SLASH = {
@@ -209,6 +273,16 @@ export function buildLoadout(character) {
       cooldown: RANGED_DEFAULTS.projectile.fireCooldown,
       speed: RANGED_DEFAULTS.projectile.projectileSpeed,
       color: baseWeapon.color,
+    },
+    {
+      ...SMG_WEAPON,
+      damage: Math.round(baseDamage * SMG_WEAPON.damageScale),
+      color: '#3a3f47',
+    },
+    {
+      ...ROCKET_WEAPON,
+      damage: Math.round(baseDamage * ROCKET_WEAPON.damageScale),
+      color: '#5a6a3a',
     },
   ];
 }

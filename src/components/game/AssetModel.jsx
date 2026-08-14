@@ -1,59 +1,96 @@
 import { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { ASSET_TYPES } from '@/data/assetsCatalog.js';
+import { ToonMat } from '@/game/toon.jsx';
 
-// Procedurální low-poly modely herních assetů — blokový retro styl
-// (boxGeometry/cylinderGeometry + meshStandardMaterial, viz CharacterModel.jsx).
+// Procedurální modely herních assetů — KRESLENÝ animákový styl (cel-shading).
+// Zaoblené tvary (koule, kapsle, kužely, torusy), karikaturní proporce:
+// velké hlavy, velké oči, rukavicovité ruce, boubelatá auta, obláčkové stromy.
+// Materiál všude <ToonMat> (MeshToonMaterial se čtyřstupňovým gradientem).
+//
 // Kotva každého modelu je u země (y = 0), čelo/směr jízdy míří na +z.
 //
 // Volitelný `animRef` je sdílený mutable objekt:
 //   { current: { speed: 0..1, pose: null|'drep'|'klik'|'tanec'|'opily', wheelSpin: rad/s } }
-// - lidé a zvířata houpou končetinami podle `speed` (protichůdný švih jako CharacterModel)
-// - kola vozidel se točí úhlovou rychlostí `wheelSpin`
+// - lidé a zvířata houpou končetinami podle `speed` (protichůdný švih / klus)
+// - kola vozidel integrují rotaci úhlovou rychlostí `wheelSpin`
 // - `pose` přepíná speciální pózy (dřepy, kliky, tanec, opilecké vrávorání)
+// - výchozí postoj se resetuje každý snímek
 
-const SKIN = '#e0b088';
-const GLASS = '#26303c';
-const DARK = '#22242a';
+const SKIN = '#f2c49a'; // kreslená pleť
+const GLASS = '#aadcef'; // světle modrá kreslená skla
+const DARK = '#2b2e36';
+const WHITE = '#f7f5ee';
+const PUPIL = '#221f1d';
 
-/* ---------- Pomocné stavební dílky ---------- */
+/* ---------- Pomocné zaoblené stavební dílky (vše s ToonMat) ---------- */
 
-function Box({ p = [0, 0, 0], r, s = [1, 1, 1], c = '#888888', cast = false }) {
+function Sph({ p = [0, 0, 0], r, sc, radius = 0.5, c = '#888888', cast = false, e, ei }) {
   return (
-    <mesh castShadow={cast} position={p} rotation={r}>
-      <boxGeometry args={s} />
-      <meshStandardMaterial color={c} />
+    <mesh castShadow={cast} position={p} rotation={r} scale={sc}>
+      <sphereGeometry args={[radius, 16, 12]} />
+      <ToonMat color={c} emissive={e} emissiveIntensity={ei} />
     </mesh>
   );
 }
 
-function Cyl({ p = [0, 0, 0], r, s = [0.5, 0.5, 1, 8], c = '#888888', cast = false }) {
+// Kapsle — osa podél Y; `len` je délka válcové části (celkem len + 2*radius)
+function Caps({ p = [0, 0, 0], r, sc, radius = 0.1, len = 0.3, c = '#888888', cast = false }) {
   return (
-    <mesh castShadow={cast} position={p} rotation={r}>
-      <cylinderGeometry args={s} />
-      <meshStandardMaterial color={c} />
+    <mesh castShadow={cast} position={p} rotation={r} scale={sc}>
+      <capsuleGeometry args={[radius, len, 6, 14]} />
+      <ToonMat color={c} />
     </mesh>
   );
 }
 
-// Nízkopolygonová koule (keře, koruny, hřívy) — flatShading pro hranatý retro vzhled
-function Ball({ p = [0, 0, 0], radius = 0.5, sc, c = '#888888', cast = false }) {
+function Cyl({ p = [0, 0, 0], r, sc, args = [0.5, 0.5, 1, 16], c = '#888888', cast = false, e, ei }) {
   return (
-    <mesh castShadow={cast} position={p} scale={sc}>
-      <sphereGeometry args={[radius, 7, 5]} />
-      <meshStandardMaterial color={c} flatShading />
+    <mesh castShadow={cast} position={p} rotation={r} scale={sc}>
+      <cylinderGeometry args={args} />
+      <ToonMat color={c} emissive={e} emissiveIntensity={ei} />
     </mesh>
+  );
+}
+
+function Cone({ p = [0, 0, 0], r, sc, args = [0.5, 1, 16], c = '#888888', cast = false }) {
+  return (
+    <mesh castShadow={cast} position={p} rotation={r} scale={sc}>
+      <coneGeometry args={args} />
+      <ToonMat color={c} />
+    </mesh>
+  );
+}
+
+function Tor({ p = [0, 0, 0], r, sc, args = [0.5, 0.15, 12, 24], c = '#888888', cast = false }) {
+  return (
+    <mesh castShadow={cast} position={p} rotation={r} scale={sc}>
+      <torusGeometry args={args} />
+      <ToonMat color={c} />
+    </mesh>
+  );
+}
+
+// Velké kreslené oko — bílá koule + černá zornička (hledí na +z)
+function Eye({ p = [0, 0, 0], radius = 0.07 }) {
+  return (
+    <group position={p}>
+      <Sph radius={radius} c={WHITE} />
+      <Sph p={[0, 0, radius * 0.72]} radius={radius * 0.42} c={PUPIL} />
+    </group>
   );
 }
 
 /* ---------- Kola vozidel ---------- */
 
-// Kolo naležato (válec podél osy X); točí se celá skupina kolem X podle wheelSpin
-function Wheel({ p, radius = 0.32, width = 0.22, refFn }) {
+// Kreslené kolo s bílým bokem naležato (osa podél X); točí se celá skupina kolem X
+function Wheel({ p, radius = 0.36, width = 0.24, refFn }) {
   return (
     <group ref={refFn} position={p}>
-      <Cyl r={[0, 0, Math.PI / 2]} s={[radius, radius, width, 10]} c="#1d1d22" cast />
-      <Cyl r={[0, 0, Math.PI / 2]} s={[radius * 0.45, radius * 0.45, width + 0.04, 8]} c="#9298a2" />
+      <Cyl r={[0, 0, Math.PI / 2]} args={[radius, radius, width, 16]} c="#22252a" cast />
+      {/* bílý bok pneumatiky + náboj */}
+      <Cyl r={[0, 0, Math.PI / 2]} args={[radius * 0.68, radius * 0.68, width + 0.04, 16]} c={WHITE} />
+      <Cyl r={[0, 0, Math.PI / 2]} args={[radius * 0.3, radius * 0.3, width + 0.08, 12]} c="#cfd4da" />
     </group>
   );
 }
@@ -72,41 +109,39 @@ function useWheels(animRef) {
   return addWheel;
 }
 
-/* ---------- Lidé — blokoví panáčci (zjednodušený CharacterModel) ---------- */
+/* ---------- Lidé — kreslení panáčci s velkou hlavou ---------- */
 
-// Konfigurace rolí: barvy oblečení a doplňky
+// Konfigurace rolí: barvy oblečení a doplňky (velikosti řeší CartoonPerson)
 const PEOPLE = {
   dite: (v) => ({
-    scale: 0.8, torso: v.triko || '#d9903a', sleeve: v.triko || '#d9903a',
-    pants: '#3b5f8f', hair: '#5a3d20',
+    scale: 0.72, headScale: 1.25, torso: v.triko || '#e0913a', pants: '#4a6fd0',
+    hair: '#6b4222', shoe: '#e04848',
   }),
   pan: (v) => ({
-    torso: v.oblek || '#3a3f4a', sleeve: v.oblek || '#3a3f4a',
-    pants: '#2c3038', hair: '#33261a', tie: '#8f2f35',
+    torso: v.oblek || '#3a3f4a', pants: '#2c3038', hair: '#33261a',
+    tie: '#e05555', shoe: '#2a2118',
   }),
   pani: (v) => ({
-    torso: v.saty || '#a24a68', sleeve: v.saty || '#a24a68', skirt: v.saty || '#a24a68',
-    pants: SKIN, shoe: '#4a2430', hair: '#4a2c14', longHair: true, bag: '#6b4a2b',
+    torso: v.saty || '#c25578', skirt: v.saty || '#c25578', pants: SKIN,
+    shoe: '#7d2f4a', hair: '#5c3618', longHair: true, bag: '#8a5c33',
   }),
   hasic: () => ({
-    torso: '#b3342e', sleeve: '#b3342e', pants: '#7d2621',
-    hat: 'helma', hatColor: '#d8b83a', stripe: '#d8b83a',
+    torso: '#e0442f', pants: '#9c2f24', hat: 'helma', hatColor: '#f2c53d',
+    stripe: '#f2c53d', shoe: '#2a2118',
   }),
   policajt: () => ({
-    torso: '#25335c', sleeve: '#25335c', pants: '#1c2540',
-    hat: 'cepice', hatColor: '#25335c',
+    torso: '#2c3f7d', pants: '#22305f', hat: 'cepice', hatColor: '#2c3f7d', shoe: '#1e222c',
   }),
   mestsky_policajt: () => ({
-    torso: '#3d5f9e', sleeve: '#3d5f9e', pants: '#2c3f66',
-    hat: 'cepice', hatColor: '#3d5f9e', vest: '#cbe345',
+    torso: '#4a6fd0', pants: '#32488a', hat: 'cepice', hatColor: '#4a6fd0',
+    vest: '#d6ef4a', shoe: '#1e222c',
   }),
   zdravotnik: () => ({
-    torso: '#eeeeea', sleeve: '#eeeeea', pants: '#2f7d4f',
-    hair: '#3a2c1c', cross: '#2f7d4f',
+    torso: '#f4f4ee', pants: '#3aa060', hair: '#3a2c1c', cross: '#3aa060', shoe: '#f4f4ee',
   }),
 };
 
-function BlockyPerson({ conf: c, animRef }) {
+function CartoonPerson({ conf: c, animRef }) {
   const rootRef = useRef();
   const legLRef = useRef();
   const legRRef = useRef();
@@ -125,7 +160,7 @@ function BlockyPerson({ conf: c, animRef }) {
     const t = state.clock.elapsedTime;
     const speed = Math.max(0, Math.min(1, anim.speed || 0));
 
-    // Výchozí postoj + protichůdný švih končetin podle rychlosti (viz CharacterModel)
+    // Reset výchozího postoje + protichůdný švih končetin podle rychlosti
     phase.current += delta * 8 * speed;
     const swing = Math.sin(phase.current) * 0.55 * speed;
     root.rotation.set(0, 0, 0);
@@ -140,14 +175,14 @@ function BlockyPerson({ conf: c, animRef }) {
       const k = 0.5 + 0.5 * Math.sin(t * 3.2); // 0 = stoj, 1 = dřep
       lL.rotation.x = k * 1.15;
       lR.rotation.x = k * 1.15;
-      root.position.y = -k * 0.3;
+      root.position.y = -k * 0.26;
       aL.rotation.x = -1.35;
       aR.rotation.x = -1.35;
     } else if (anim.pose === 'klik') {
-      // Kliky: tělo vodorovně nízko obličejem k zemi, ruce se rytmicky krčí
+      // Kliky: tělo vodorovně obličejem k zemi, ruce se rytmicky krčí
       const k = 0.5 + 0.5 * Math.sin(t * 3.5); // 1 = napnuté ruce (nahoře)
       root.rotation.x = 1.35;
-      root.position.y = 0.12 + 0.2 * k;
+      root.position.y = 0.26 + 0.2 * k;
       aL.rotation.x = -(Math.PI / 2) * (0.55 + 0.45 * k);
       aR.rotation.x = -(Math.PI / 2) * (0.55 + 0.45 * k);
       lL.rotation.x = 0;
@@ -161,7 +196,7 @@ function BlockyPerson({ conf: c, animRef }) {
       lL.rotation.x = Math.sin(t * 6) * 0.25;
       lR.rotation.x = -Math.sin(t * 6) * 0.25;
     } else if (anim.pose === 'opily') {
-      // Opilec: pomalé naklánění do stran, ruce mírně od těla, vratký krok
+      // Opilec: pomalé naklánění do stran, ruce mírně od těla
       root.rotation.z = Math.sin(t * 1.1) * 0.22;
       root.rotation.x = Math.sin(t * 0.7) * 0.08;
       aL.rotation.z = 0.4;
@@ -169,111 +204,126 @@ function BlockyPerson({ conf: c, animRef }) {
     }
   });
 
+  const hipY = 0.52;
   return (
     <group ref={rootRef} scale={c.scale || 1}>
-      {/* Nohy — pivot v kyčli */}
-      <group ref={legLRef} position={[-0.12, 0.6, 0]}>
-        <Box p={[0, -0.3, 0]} s={[0.17, 0.6, 0.17]} c={c.pants} cast />
-        <Box p={[0, -0.57, 0.03]} s={[0.18, 0.08, 0.24]} c={c.shoe || '#241a12'} />
-      </group>
-      <group ref={legRRef} position={[0.12, 0.6, 0]}>
-        <Box p={[0, -0.3, 0]} s={[0.17, 0.6, 0.17]} c={c.pants} cast />
-        <Box p={[0, -0.57, 0.03]} s={[0.18, 0.08, 0.24]} c={c.shoe || '#241a12'} />
-      </group>
+      {/* Nohy — tenké kapsle s obřími botami, pivot v kyčli */}
+      {[[legLRef, -1], [legRRef, 1]].map(([ref, sx]) => (
+        <group key={sx} ref={ref} position={[sx * 0.11, hipY, 0]}>
+          <Caps p={[0, -0.24, 0]} radius={0.05} len={0.3} c={c.pants} cast />
+          {/* velká bota — zploštělá kapsle vystrčená dopředu */}
+          <Caps p={[0, -0.47, 0.06]} r={[Math.PI / 2, 0, 0]} sc={[1.1, 1, 0.6]} radius={0.085} len={0.16} c={c.shoe || '#3a2a1c'} cast />
+        </group>
+      ))}
 
-      {/* Sukně (paní) */}
-      {c.skirt && <Box p={[0, 0.56, 0]} s={[0.5, 0.26, 0.32]} c={c.skirt} cast />}
+      {/* Sukně (paní) — kužel přes boky */}
+      {c.skirt && <Cone p={[0, 0.54, 0]} args={[0.3, 0.4, 16]} c={c.skirt} cast />}
 
-      {/* Trup + doplňky na hrudi */}
-      <Box p={[0, 0.86, 0]} s={[0.46, 0.52, 0.26]} c={c.torso} cast />
-      {c.tie && <Box p={[0, 0.9, 0.135]} s={[0.08, 0.3, 0.02]} c={c.tie} />}
-      {c.stripe && <Box p={[0, 0.74, 0]} s={[0.47, 0.09, 0.27]} c={c.stripe} />}
+      {/* Trup — hruškovitá zploštělá koule */}
+      <Sph p={[0, 0.78, 0]} sc={[1, 1.15, 0.88]} radius={0.24} c={c.torso} cast />
+
+      {/* Doplňky na hrudi */}
+      {c.tie && (
+        <group>
+          {/* kravata — uzel + kužel špičkou dolů */}
+          <Sph p={[0, 1.0, 0.185]} radius={0.045} c={c.tie} />
+          <Cone p={[0, 0.87, 0.19]} r={[Math.PI, 0, 0]} sc={[1, 1, 0.5]} args={[0.055, 0.24, 10]} c={c.tie} />
+        </group>
+      )}
+      {c.stripe && <Tor p={[0, 0.72, 0]} r={[Math.PI / 2, 0, 0]} args={[0.235, 0.04, 10, 22]} c={c.stripe} />}
       {c.vest && (
         <group>
-          {/* reflexní vesta s pruhem */}
-          <Box p={[0, 0.94, 0]} s={[0.48, 0.24, 0.28]} c={c.vest} />
-          <Box p={[0, 0.94, 0]} s={[0.49, 0.07, 0.29]} c="#d8d8d8" />
+          {/* reflexní vesta — zářivá slupka s bílým pruhem */}
+          <Sph p={[0, 0.84, 0]} sc={[1.02, 0.82, 0.9]} radius={0.245} c={c.vest} />
+          <Tor p={[0, 0.84, 0]} r={[Math.PI / 2, 0, 0]} args={[0.245, 0.028, 8, 22]} c={WHITE} />
         </group>
       )}
       {c.cross && (
         <group>
-          {/* zdravotnický kříž */}
-          <Box p={[0, 0.92, 0.135]} s={[0.06, 0.2, 0.02]} c={c.cross} />
-          <Box p={[0, 0.92, 0.135]} s={[0.2, 0.06, 0.02]} c={c.cross} />
+          {/* zdravotnický kříž z kapslí */}
+          <Caps p={[0, 0.9, 0.2]} radius={0.032} len={0.1} c={c.cross} />
+          <Caps p={[0, 0.9, 0.2]} r={[0, 0, Math.PI / 2]} radius={0.032} len={0.1} c={c.cross} />
         </group>
       )}
 
-      {/* Paže — pivot v rameni */}
-      <group ref={armLRef} position={[-0.3, 1.08, 0]}>
-        <Box p={[0, -0.22, 0]} s={[0.13, 0.44, 0.13]} c={c.sleeve} cast />
-        <Box p={[0, -0.48, 0]} s={[0.12, 0.12, 0.12]} c={SKIN} />
-        {c.bag && <Box p={[-0.02, -0.52, 0.13]} s={[0.16, 0.15, 0.08]} c={c.bag} />}
+      {/* Paže — tenké kapsle s velkýma bílýma rukavicema, pivot v rameni */}
+      {[[armLRef, -1], [armRRef, 1]].map(([ref, sx]) => (
+        <group key={sx} ref={ref} position={[sx * 0.27, 0.98, 0]}>
+          <Caps p={[0, -0.17, 0]} radius={0.042} len={0.24} c={c.torso} cast />
+          <Sph p={[0, -0.38, 0]} radius={0.085} c={WHITE} cast />
+          {c.bag && sx < 0 && <Sph p={[0, -0.45, 0.08]} sc={[1, 0.85, 0.6]} radius={0.11} c={c.bag} />}
+        </group>
+      ))}
+
+      {/* Hlava — obří koule (~40 % výšky), velké oči, nos bambule, úsměv */}
+      <group position={[0, 1.28, 0]} scale={c.headScale || 1}>
+        <Sph radius={0.3} c={SKIN} cast />
+        <Eye p={[-0.105, 0.05, 0.24]} radius={0.08} />
+        <Eye p={[0.105, 0.05, 0.24]} radius={0.08} />
+        <Sph p={[0, -0.04, 0.3]} radius={0.06} c="#eba36e" />
+        <Tor p={[0, -0.12, 0.235]} r={[0.35, 0, Math.PI]} args={[0.08, 0.014, 8, 12, Math.PI]} c="#8a4a3a" />
+
+        {/* Vlasy — čupřina z koulí; dlouhé vlasy s drdolem u paní */}
+        {c.hair && (
+          <group>
+            <Sph p={[0, 0.09, -0.03]} sc={[1, 0.72, 1]} radius={0.315} c={c.hair} />
+            {c.longHair && (
+              <group>
+                <Sph p={[0, -0.1, -0.2]} sc={[0.95, 1.15, 0.6]} radius={0.28} c={c.hair} />
+                <Sph p={[0, 0.31, -0.06]} radius={0.12} c={c.hair} />
+              </group>
+            )}
+          </group>
+        )}
+
+        {/* Hasičská helma — kopule s krempou a hřebínkem */}
+        {c.hat === 'helma' && (
+          <group>
+            <Sph p={[0, 0.12, 0]} sc={[1, 0.72, 1]} radius={0.34} c={c.hatColor} cast />
+            <Tor p={[0, -0.01, 0]} r={[Math.PI / 2, 0, 0]} args={[0.315, 0.05, 10, 20]} c={c.hatColor} />
+            <Caps p={[0, 0.32, 0]} r={[Math.PI / 2, 0, 0]} sc={[0.7, 1, 1]} radius={0.05} len={0.26} c={c.hatColor} />
+          </group>
+        )}
+        {/* Policejní čepice — placka s kšiltem a odznakem */}
+        {c.hat === 'cepice' && (
+          <group>
+            <Sph p={[0, 0.12, 0]} sc={[1, 0.6, 1]} radius={0.315} c={c.hatColor} cast />
+            <Sph p={[0, 0.06, 0.29]} sc={[1.1, 0.2, 1.1]} radius={0.16} c={DARK} />
+            <Sph p={[0, 0.17, 0.28]} radius={0.045} c="#e8c94a" />
+          </group>
+        )}
       </group>
-      <group ref={armRRef} position={[0.3, 1.08, 0]}>
-        <Box p={[0, -0.22, 0]} s={[0.13, 0.44, 0.13]} c={c.sleeve} cast />
-        <Box p={[0, -0.48, 0]} s={[0.12, 0.12, 0.12]} c={SKIN} />
-      </group>
-
-      {/* Hlava — bez textury, jen barevný obličej s tečkami očí */}
-      <Box p={[0, 1.29, 0]} s={[0.3, 0.3, 0.3]} c={SKIN} cast />
-      <Box p={[-0.06, 1.32, 0.151]} s={[0.045, 0.045, 0.01]} c="#241f1a" />
-      <Box p={[0.06, 1.32, 0.151]} s={[0.045, 0.045, 0.01]} c="#241f1a" />
-
-      {/* Vlasy (deska nahoře + vzadu; dlouhé u paní) */}
-      {c.hair && (
-        <group>
-          <Box p={[0, 1.43, 0]} s={[0.32, 0.08, 0.32]} c={c.hair} />
-          <Box p={[0, c.longHair ? 1.24 : 1.3, -0.155]} s={[0.32, c.longHair ? 0.36 : 0.2, 0.05]} c={c.hair} />
-        </group>
-      )}
-
-      {/* Pokrývky hlavy */}
-      {c.hat === 'helma' && (
-        <group position={[0, 1.46, 0]}>
-          <Box s={[0.36, 0.14, 0.36]} c={c.hatColor} cast />
-          <Box p={[0, -0.05, 0.2]} s={[0.36, 0.05, 0.1]} c={c.hatColor} /> {/* štítek */}
-        </group>
-      )}
-      {c.hat === 'cepice' && (
-        <group position={[0, 1.47, 0]}>
-          <Cyl s={[0.17, 0.18, 0.09, 8]} c={c.hatColor} cast />
-          <Box p={[0, -0.04, 0.19]} s={[0.24, 0.03, 0.12]} c={DARK} /> {/* kšilt */}
-        </group>
-      )}
     </group>
   );
 }
 
-/* ---------- Zvířata — čtyřnožci s klusem a vrtěním ocasu ---------- */
+/* ---------- Zvířata — kreslení čtyřnožci s klusem a vrtěním ocasu ---------- */
 
+// Kostra: bodyR/bodyLen/bodyY = kapsle těla, legR/legY = nohy, head = pozice hlavy
 const ANIMALS = {
   pes: (v) => ({
-    srst: v.srst || '#8a5a2e', srstB: v.srstB || '#6e4522',
-    bw: 0.22, bh: 0.26, bl: 0.55, legH: 0.24, lt: 0.07, head: 0.2,
-    muzzle: true, ears: 'svisle', obojek: '#c03030',
-    tail: { len: 0.26, up: 0.85, t: 0.055 },
+    druh: 'pes', srst: v.srst || '#a06432', srstB: v.srstB || '#7d4d26',
+    bodyR: 0.14, bodyLen: 0.3, bodyY: 0.34, legR: 0.04, legY: 0.28,
+    head: { r: 0.2, y: 0.56, z: 0.3 }, obojek: '#e04848',
   }),
   kocka: (v) => ({
-    srst: v.srst || '#26262b', srstB: v.srstB || '#3a3a40',
-    bw: 0.16, bh: 0.18, bl: 0.42, legH: 0.18, lt: 0.05, head: 0.16,
-    ears: 'spicate',
-    tail: { len: 0.34, up: 0.25, t: 0.04 },
+    druh: 'kocka', srst: v.srst || '#2c2c32', srstB: v.srstB || '#44444c',
+    bodyR: 0.1, bodyLen: 0.26, bodyY: 0.26, legR: 0.032, legY: 0.21,
+    head: { r: 0.16, y: 0.44, z: 0.25 },
   }),
   lev: (v) => ({
-    srst: v.srst || '#c98f3d', srstB: v.srstB || '#a8742e', hriva: v.hriva || '#7a4a1e',
-    bw: 0.42, bh: 0.48, bl: 1.05, legH: 0.42, lt: 0.14, head: 0.32,
-    muzzle: true, mane: true,
-    tail: { len: 0.5, up: 1.2, t: 0.06, tuft: v.hriva || '#7a4a1e' },
+    druh: 'lev', srst: v.srst || '#d99c44', srstB: '#e8cf9c', hriva: v.hriva || '#8a5222',
+    bodyR: 0.18, bodyLen: 0.4, bodyY: 0.45, legR: 0.055, legY: 0.36,
+    head: { r: 0.24, y: 0.88, z: 0.4 },
   }),
   kun: (v) => ({
-    srst: v.srst || '#7a4a28', srstB: v.srstB || '#5c3820', hriva: v.hriva || '#3a2a18',
-    bw: 0.4, bh: 0.55, bl: 1.2, legH: 0.75, lt: 0.1, head: 0.2,
-    horse: true,
-    tail: { len: 0.55, hang: true, t: 0.1, c: v.hriva || '#3a2a18', up: 0 },
+    druh: 'kun', srst: v.srst || '#8a5530', srstB: v.srstB || '#6b421f', hriva: v.hriva || '#3a2a18',
+    bodyR: 0.25, bodyLen: 0.55, bodyY: 0.93, legR: 0.055, legY: 0.72,
+    head: { r: 0.17 },
   }),
 };
 
-function BlockyAnimal({ conf: a, animRef }) {
+function CartoonAnimal({ conf: a, animRef }) {
   const rootRef = useRef();
   const legFL = useRef();
   const legFR = useRef();
@@ -300,7 +350,7 @@ function BlockyAnimal({ conf: a, animRef }) {
     // Vrtění ocasem — rychleji při pohybu
     if (tailRef.current) tailRef.current.rotation.y = Math.sin(t * (3 + speed * 6)) * 0.35;
 
-    // Pár póz zvládnou i zvířata
+    // Reset + pár póz zvládnou i zvířata
     root.rotation.set(0, 0, 0);
     root.position.y = 0;
     if (anim.pose === 'opily') {
@@ -313,158 +363,235 @@ function BlockyAnimal({ conf: a, animRef }) {
     }
   });
 
-  const bodyY = a.legH + a.bh / 2;
+  const legLen = Math.max(0.02, a.legY - 2 * a.legR);
+  const legX = a.bodyR * 0.62;
+  const legZ = a.bodyLen / 2 + a.bodyR * 0.2;
+  const h = a.head;
+
   return (
     <group ref={rootRef}>
-      {/* Tělo */}
-      <Box p={[0, bodyY, 0]} s={[a.bw, a.bh, a.bl]} c={a.srst} cast />
+      {/* Tělo — buclatá kapsle podél osy z */}
+      <Caps p={[0, a.bodyY, 0]} r={[Math.PI / 2, 0, 0]} radius={a.bodyR} len={a.bodyLen} c={a.srst} cast />
 
-      {/* Nohy — pivot v kyčli/rameni */}
+      {/* Nohy — kapsle s tlapkami, pivot v kyčli/rameni */}
       {[[legFL, -1, 1], [legFR, 1, 1], [legBL, -1, -1], [legBR, 1, -1]].map(([ref, sx, sz], i) => (
-        <group key={i} ref={ref} position={[sx * (a.bw / 2 - a.lt / 2), a.legH, sz * (a.bl / 2 - a.lt / 2)]}>
-          <Box p={[0, -a.legH / 2, 0]} s={[a.lt, a.legH, a.lt]} c={a.srstB} cast />
+        <group key={i} ref={ref} position={[sx * legX, a.legY, sz * legZ]}>
+          <Caps p={[0, -a.legY / 2, 0]} radius={a.legR} len={legLen} c={a.srstB} cast />
+          <Sph p={[0, -a.legY + a.legR, a.legR * 0.5]} sc={[1.1, 0.8, 1.2]} radius={a.legR * 1.3} c={a.srstB} />
         </group>
       ))}
 
-      {a.horse ? (
-        /* Kůň — dlouhý šikmý krk s hřívou a podlouhlá hlava */
-        <group position={[0, a.legH + a.bh - 0.08, a.bl / 2 - 0.12]} rotation={[0.45, 0, 0]}>
-          <Box p={[0, 0.32, 0]} s={[0.2, 0.72, 0.26]} c={a.srst} cast />
-          <Box p={[0, 0.34, -0.16]} s={[0.07, 0.6, 0.09]} c={a.hriva} />
-          <group position={[0, 0.66, 0.08]} rotation={[-0.45, 0, 0]}>
-            <Box p={[0, 0, 0.14]} s={[0.2, 0.24, 0.5]} c={a.srst} cast />
-            <Box p={[0, -0.04, 0.41]} s={[0.16, 0.17, 0.1]} c={a.srstB} />
-            <Box p={[-0.105, 0.05, 0.12]} s={[0.02, 0.04, 0.04]} c="#1c1a16" />
-            <Box p={[0.105, 0.05, 0.12]} s={[0.02, 0.04, 0.04]} c="#1c1a16" />
-            <Box p={[-0.06, 0.17, -0.08]} s={[0.045, 0.14, 0.045]} c={a.srst} />
-            <Box p={[0.06, 0.17, -0.08]} s={[0.045, 0.14, 0.045]} c={a.srst} />
-          </group>
+      {/* Obojek (pes) */}
+      {a.obojek && (
+        <Tor p={[0, a.bodyY + 0.05, a.bodyLen / 2 + 0.02]} r={[Math.PI / 2 - 0.5, 0, 0]} args={[a.bodyR * 0.95, 0.03, 10, 20]} c={a.obojek} />
+      )}
+
+      {a.druh === 'pes' && (
+        /* Pes — velká hlava, obří čumák-bambule, plandavé uši, komické obočí */
+        <group position={[0, h.y, h.z]}>
+          <Sph radius={h.r} c={a.srst} cast />
+          <Sph p={[0, -0.055, 0.16]} sc={[1.15, 0.82, 1.1]} radius={0.115} c={a.srstB} />
+          <Sph p={[0, -0.01, 0.27]} radius={0.05} c="#26221e" />
+          <Eye p={[-0.085, 0.075, 0.15]} radius={0.068} />
+          <Eye p={[0.085, 0.075, 0.15]} radius={0.068} />
+          {/* obočí — tlusté čárky nad očima */}
+          <Caps p={[-0.085, 0.17, 0.13]} r={[0, 0, Math.PI / 2 + 0.35]} radius={0.016} len={0.05} c="#3a2a18" />
+          <Caps p={[0.085, 0.17, 0.13]} r={[0, 0, Math.PI / 2 - 0.35]} radius={0.016} len={0.05} c="#3a2a18" />
+          {/* plandavé uši — zploštělé kapsle po stranách */}
+          <Caps p={[-0.2, 0, -0.02]} r={[0, 0, 0.25]} sc={[1, 1, 0.45]} radius={0.05} len={0.13} c={a.srstB} cast />
+          <Caps p={[0.2, 0, -0.02]} r={[0, 0, -0.25]} sc={[1, 1, 0.45]} radius={0.05} len={0.13} c={a.srstB} cast />
         </group>
-      ) : (
-        /* Hlava vpředu — oči, čumák, uši, případně hříva */
-        <group position={[0, a.legH + a.bh + a.head * 0.3, a.bl / 2 + a.head * 0.3]}>
-          {a.mane && <Ball p={[0, 0, -a.head * 0.2]} radius={a.head * 0.95} sc={[1, 1, 0.55]} c={a.hriva} cast />}
-          <Box s={[a.head, a.head, a.head]} c={a.srst} cast />
-          <Box p={[-a.head * 0.22, a.head * 0.08, a.head / 2 + 0.004]} s={[a.head * 0.14, a.head * 0.14, 0.01]} c="#1c1a16" />
-          <Box p={[a.head * 0.22, a.head * 0.08, a.head / 2 + 0.004]} s={[a.head * 0.14, a.head * 0.14, 0.01]} c="#1c1a16" />
-          {a.muzzle && <Box p={[0, -a.head * 0.18, a.head * 0.55]} s={[a.head * 0.5, a.head * 0.4, a.head * 0.5]} c={a.srstB} />}
-          {a.ears === 'spicate' && (
-            <group>
-              <Cyl p={[-a.head * 0.28, a.head * 0.62, 0]} s={[0.004, a.head * 0.28, a.head * 0.45, 4]} c={a.srst} />
-              <Cyl p={[a.head * 0.28, a.head * 0.62, 0]} s={[0.004, a.head * 0.28, a.head * 0.45, 4]} c={a.srst} />
-            </group>
-          )}
-          {a.ears === 'svisle' && (
-            <group>
-              <Box p={[-(a.head / 2 + 0.02), a.head * 0.1, -a.head * 0.1]} s={[0.035, a.head * 0.55, a.head * 0.35]} c={a.srstB} />
-              <Box p={[a.head / 2 + 0.02, a.head * 0.1, -a.head * 0.1]} s={[0.035, a.head * 0.55, a.head * 0.35]} c={a.srstB} />
-            </group>
-          )}
+      )}
+      {a.druh === 'kocka' && (
+        /* Kočka — obrovské oči, špičaté uši-kužely, růžový nosík */
+        <group position={[0, h.y, h.z]}>
+          <Sph radius={h.r} c={a.srst} cast />
+          <Eye p={[-0.07, 0.045, 0.115]} radius={0.068} />
+          <Eye p={[0.07, 0.045, 0.115]} radius={0.068} />
+          <Sph p={[0, -0.06, 0.12]} sc={[1.3, 0.7, 1]} radius={0.07} c={a.srstB} />
+          <Cone p={[0, -0.028, 0.17]} r={[Math.PI, 0, 0]} args={[0.024, 0.035, 8]} c="#e08a9c" />
+          {/* uši — kužely s růžovým vnitřkem */}
+          <Cone p={[-0.095, 0.155, 0]} r={[0, 0, 0.25]} args={[0.06, 0.14, 10]} c={a.srst} cast />
+          <Cone p={[0.095, 0.155, 0]} r={[0, 0, -0.25]} args={[0.06, 0.14, 10]} c={a.srst} cast />
+          <Cone p={[-0.09, 0.15, 0.025]} r={[0.15, 0, 0.25]} args={[0.03, 0.08, 8]} c="#e08a9c" />
+          <Cone p={[0.09, 0.15, 0.025]} r={[0.15, 0, -0.25]} args={[0.03, 0.08, 8]} c="#e08a9c" />
+        </group>
+      )}
+      {a.druh === 'lev' && (
+        /* Lev — obří kulatá hříva z věnce koulí, komicky malé tělo */
+        <group position={[0, h.y, h.z]}>
+          {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => {
+            const ang = (i / 8) * Math.PI * 2;
+            return (
+              <Sph key={i} p={[Math.cos(ang) * 0.33, Math.sin(ang) * 0.33, -0.07]} radius={0.17} c={a.hriva} cast />
+            );
+          })}
+          <Sph radius={h.r} c={a.srst} cast />
+          <Sph p={[0, -0.07, 0.19]} sc={[1.2, 0.85, 1]} radius={0.13} c={a.srstB} />
+          <Sph p={[0, -0.02, 0.3]} radius={0.05} c="#3a2620" />
+          <Eye p={[-0.095, 0.09, 0.19]} radius={0.07} />
+          <Eye p={[0.095, 0.09, 0.19]} radius={0.07} />
+          {/* ouška vykukují nad hřívou */}
+          <Sph p={[-0.19, 0.26, 0]} radius={0.07} c={a.srst} />
+          <Sph p={[0.19, 0.26, 0]} radius={0.07} c={a.srst} />
+        </group>
+      )}
+      {a.druh === 'kun' && (
+        /* Kůň — dlouhý zaoblený krk s hřívou, protáhlá tlama s VELKÝMI nozdrami */
+        <group position={[0, a.bodyY + a.bodyR * 0.55, a.bodyLen / 2 + 0.05]} rotation={[0.62, 0, 0]}>
+          <Caps p={[0, 0.2, 0]} radius={0.15} len={0.4} c={a.srst} cast />
+          {/* hříva — řada koulí po zadní hraně krku */}
+          <Sph p={[0, 0.05, -0.15]} radius={0.085} c={a.hriva} />
+          <Sph p={[0, 0.22, -0.17]} radius={0.085} c={a.hriva} />
+          <Sph p={[0, 0.39, -0.15]} radius={0.08} c={a.hriva} />
+          <group position={[0, 0.48, 0.02]} rotation={[-0.45, 0, 0]}>
+            <Sph sc={[0.95, 1, 1.1]} radius={h.r} c={a.srst} cast />
+            {/* tlama dopředu-dolů + velké nozdry */}
+            <Caps p={[0, -0.05, 0.16]} r={[Math.PI / 2, 0, 0]} sc={[1, 1, 0.9]} radius={0.105} len={0.14} c={a.srst} />
+            <Sph p={[0, -0.06, 0.27]} sc={[1.05, 0.9, 0.7]} radius={0.1} c={a.srstB} />
+            <Sph p={[-0.055, -0.035, 0.31]} radius={0.038} c="#2a211c" />
+            <Sph p={[0.055, -0.035, 0.31]} radius={0.038} c="#2a211c" />
+            <Eye p={[-0.1, 0.07, 0.1]} radius={0.055} />
+            <Eye p={[0.1, 0.07, 0.1]} radius={0.055} />
+            <Cone p={[-0.08, 0.19, -0.04]} r={[0.15, 0, 0.2]} args={[0.045, 0.13, 8]} c={a.srst} />
+            <Cone p={[0.08, 0.19, -0.04]} r={[0.15, 0, -0.2]} args={[0.045, 0.13, 8]} c={a.srst} />
+          </group>
         </group>
       )}
 
-      {/* Obojek (pes) */}
-      {a.obojek && <Box p={[0, a.legH + a.bh - 0.02, a.bl / 2 - 0.04]} s={[a.bw + 0.03, 0.05, 0.1]} c={a.obojek} />}
-
-      {/* Ocas — vztyčený, nebo visící (kůň); vrtí se v useFrame */}
-      <group ref={tailRef} position={[0, a.legH + a.bh - 0.03, -a.bl / 2]} rotation={[a.tail.hang ? 0.35 : -a.tail.up, 0, 0]}>
-        <Box p={[0, ((a.tail.hang ? -1 : 1) * a.tail.len) / 2, 0]} s={[a.tail.t, a.tail.len, a.tail.t]} c={a.tail.c || a.srstB} />
-        {a.tail.tuft && <Box p={[0, a.tail.len, 0]} s={[0.09, 0.1, 0.09]} c={a.tail.tuft} />}
-      </group>
+      {/* Ocas — vrtí se v useFrame (rotation.y) */}
+      {a.druh === 'pes' && (
+        <group ref={tailRef} position={[0, a.bodyY + a.bodyR * 0.5, -(a.bodyLen / 2 + a.bodyR * 0.6)]} rotation={[-0.9, 0, 0]}>
+          <Caps p={[0, 0.1, 0]} radius={0.035} len={0.14} c={a.srstB} />
+          <Sph p={[0, 0.21, 0]} radius={0.05} c={WHITE} />
+        </group>
+      )}
+      {a.druh === 'kocka' && (
+        /* dlouhý zvlněný ocas — řetízek kapslí do S */
+        <group ref={tailRef} position={[0, a.bodyY + 0.04, -(a.bodyLen / 2 + 0.06)]} rotation={[-0.6, 0, 0]}>
+          <Caps p={[0, 0.08, 0]} radius={0.028} len={0.12} c={a.srst} />
+          <group position={[0, 0.16, 0]} rotation={[0.7, 0, 0]}>
+            <Caps p={[0, 0.07, 0]} radius={0.026} len={0.1} c={a.srst} />
+            <group position={[0, 0.14, 0]} rotation={[0.7, 0, 0]}>
+              <Caps p={[0, 0.06, 0]} radius={0.024} len={0.08} c={a.srst} />
+              <Sph p={[0, 0.12, 0]} radius={0.035} c={a.srstB} />
+            </group>
+          </group>
+        </group>
+      )}
+      {a.druh === 'lev' && (
+        <group ref={tailRef} position={[0, a.bodyY + a.bodyR * 0.4, -(a.bodyLen / 2 + a.bodyR * 0.7)]} rotation={[-0.5, 0, 0]}>
+          <Caps p={[0, 0.16, 0]} radius={0.03} len={0.26} c={a.srst} />
+          <Sph p={[0, 0.34, 0]} radius={0.08} c={a.hriva} />
+        </group>
+      )}
+      {a.druh === 'kun' && (
+        <group ref={tailRef} position={[0, a.bodyY + a.bodyR * 0.6, -(a.bodyLen / 2 + a.bodyR * 0.7)]} rotation={[0.45, 0, 0]}>
+          <Caps p={[0, -0.18, 0]} radius={0.07} len={0.26} c={a.hriva} />
+        </group>
+      )}
     </group>
   );
 }
 
-/* ---------- Vozidla ---------- */
+/* ---------- Vozidla — boubelaté kreslené karoserie ---------- */
 
-// Rozměry karoserií: délka, šířka, pozice náprav (wz) a poloměr kol (wr)
+// Rozměry: délka, šířka, pozice náprav (wz) a poloměr velkých kol (wr)
 const CAR_SHAPES = {
-  sedan: { len: 4.2, w: 1.7, wz: 1.35, wr: 0.32 },
-  hatchback: { len: 3.6, w: 1.65, wz: 1.15, wr: 0.32 },
-  kombi: { len: 4.4, w: 1.7, wz: 1.45, wr: 0.32 },
-  dodavka: { len: 4.4, w: 1.8, wz: 1.5, wr: 0.34 },
-  veteran: { len: 3.8, w: 1.5, wz: 1.25, wr: 0.34 },
+  sedan: { len: 4.2, w: 1.7, wz: 1.35, wr: 0.36 },
+  hatchback: { len: 3.6, w: 1.65, wz: 1.15, wr: 0.36 },
+  kombi: { len: 4.4, w: 1.7, wz: 1.45, wr: 0.36 },
+  dodavka: { len: 4.4, w: 1.8, wz: 1.5, wr: 0.38 },
+  veteran: { len: 3.8, w: 1.5, wz: 1.25, wr: 0.38 },
 };
 
-function CarModel({ v, animRef }) {
+// Boubelatý blatník — půloblouk torusu klenoucí se nad kolem
+function Fender({ p, wr, c }) {
+  return <Tor p={p} r={[0, Math.PI / 2, 0]} args={[wr + 0.13, 0.11, 10, 18, Math.PI]} c={c} />;
+}
+
+// Kulaté reflektory (emissive) a koncová světla
+function CarLights({ w, hl, y = 0.68 }) {
+  const x = w / 2 - 0.35;
+  return (
+    <group>
+      <Sph p={[-x, y, hl]} radius={0.13} c="#fff4c2" e="#ffdd77" ei={0.9} />
+      <Sph p={[x, y, hl]} radius={0.13} c="#fff4c2" e="#ffdd77" ei={0.9} />
+      <Sph p={[-x, y, -hl]} radius={0.09} c="#ff6655" e="#dd2222" ei={0.7} />
+      <Sph p={[x, y, -hl]} radius={0.09} c="#ff6655" e="#dd2222" ei={0.7} />
+    </group>
+  );
+}
+
+function CartoonCar({ v, animRef }) {
   const addWheel = useWheels(animRef);
   const typ = v.typ || 'sedan';
-  const barva = v.barva || '#b3342e';
+  const barva = v.barva || '#e0442f';
   const sh = CAR_SHAPES[typ] || CAR_SHAPES.sedan;
   const hw = sh.w / 2;
   const hl = sh.len / 2;
 
   return (
     <group>
-      {/* Karoserie + kabina + okna dle typu */}
+      {/* Karoserie + kabina dle typu — kapsle a zploštělé koule */}
       {typ === 'sedan' && (
         <group>
-          <Box p={[0, 0.55, 0]} s={[1.7, 0.5, 4.2]} c={barva} cast />
-          <Box p={[0, 1.03, -0.2]} s={[1.55, 0.5, 2.0]} c={barva} cast />
-          <Box p={[0, 1.06, -0.2]} s={[1.57, 0.28, 1.6]} c={GLASS} />
-          <Box p={[0, 1.06, -0.2]} s={[1.35, 0.3, 2.02]} c={GLASS} />
+          <Caps p={[0, 0.6, 0]} r={[Math.PI / 2, 0, 0]} sc={[1.7, 1.05, 1]} radius={0.5} len={3.2} c={barva} cast />
+          <Sph p={[0, 1.05, -0.25]} sc={[0.78, 0.55, 1.15]} radius={0.95} c={GLASS} cast />
+          <Sph p={[0, 1.35, -0.25]} sc={[0.8, 0.28, 1.0]} radius={0.8} c={barva} />
         </group>
       )}
       {typ === 'hatchback' && (
         <group>
-          <Box p={[0, 0.55, 0]} s={[1.65, 0.5, 3.6]} c={barva} cast />
-          <Box p={[0, 1.02, -0.35]} s={[1.5, 0.48, 1.9]} c={barva} cast />
-          <Box p={[0, 1.05, -0.35]} s={[1.52, 0.26, 1.5]} c={GLASS} />
-          <Box p={[0, 1.05, -0.35]} s={[1.3, 0.28, 1.92]} c={GLASS} />
+          <Caps p={[0, 0.6, 0]} r={[Math.PI / 2, 0, 0]} sc={[1.65, 1.05, 1]} radius={0.5} len={2.6} c={barva} cast />
+          <Sph p={[0, 1.03, -0.3]} sc={[0.76, 0.55, 1.0]} radius={0.95} c={GLASS} cast />
+          <Sph p={[0, 1.32, -0.3]} sc={[0.78, 0.28, 0.86]} radius={0.8} c={barva} />
         </group>
       )}
       {typ === 'kombi' && (
         <group>
-          <Box p={[0, 0.55, 0]} s={[1.7, 0.5, 4.4]} c={barva} cast />
-          <Box p={[0, 1.03, -0.55]} s={[1.55, 0.5, 2.7]} c={barva} cast />
-          <Box p={[0, 1.06, -0.55]} s={[1.57, 0.28, 2.3]} c={GLASS} />
-          <Box p={[0, 1.06, -0.55]} s={[1.35, 0.3, 2.72]} c={GLASS} />
+          <Caps p={[0, 0.6, 0]} r={[Math.PI / 2, 0, 0]} sc={[1.7, 1.05, 1]} radius={0.5} len={3.4} c={barva} cast />
+          <Sph p={[0, 1.05, -0.5]} sc={[0.78, 0.55, 1.45]} radius={0.95} c={GLASS} cast />
+          <Sph p={[0, 1.35, -0.5]} sc={[0.8, 0.28, 1.3]} radius={0.8} c={barva} />
         </group>
       )}
       {typ === 'dodavka' && (
         <group>
-          <Box p={[0, 0.5, 0]} s={[1.8, 0.4, 4.4]} c={DARK} />
-          <Box p={[0, 1.25, -0.15]} s={[1.8, 1.5, 4.1]} c={barva} cast />
-          <Box p={[0, 1.55, 1.91]} s={[1.5, 0.5, 0.05]} c={GLASS} />
-          <Box p={[0, 1.55, 1.5]} s={[1.82, 0.45, 0.7]} c={GLASS} />
+          {/* buclatá dodávka — nízká kapsle + velký hrb nákladu */}
+          <Caps p={[0, 0.66, 0]} r={[Math.PI / 2, 0, 0]} sc={[1.45, 1, 1]} radius={0.62} len={3.15} c={barva} cast />
+          <Caps p={[0, 1.35, -0.35]} r={[Math.PI / 2, 0, 0]} sc={[1.5, 1, 1]} radius={0.58} len={2.2} c={barva} cast />
+          <Sph p={[0, 1.32, 1.52]} sc={[1, 0.62, 0.35]} radius={0.72} c={GLASS} />
         </group>
       )}
       {typ === 'veteran' && (
         <group>
-          {/* stupačky, úzká karoserie, kapota a vysoká kabina */}
-          <Box p={[0, 0.36, 0]} s={[1.5, 0.12, 3.2]} c={DARK} />
-          <Box p={[0, 0.68, -0.35]} s={[1.15, 0.52, 2.6]} c={barva} cast />
-          <Box p={[0, 0.64, 1.35]} s={[0.95, 0.44, 1.15]} c={barva} cast />
-          <Box p={[0, 1.28, -0.75]} s={[1.2, 0.78, 1.25]} c={barva} cast />
-          <Box p={[0, 1.34, -0.75]} s={[1.22, 0.42, 1.05]} c={GLASS} />
-          <Box p={[0, 1.34, -0.75]} s={[1.04, 0.42, 1.27]} c={GLASS} />
-          {/* blatníky */}
-          <Box p={[-0.63, 0.58, 1.3]} s={[0.26, 0.18, 1.2]} c={DARK} />
-          <Box p={[0.63, 0.58, 1.3]} s={[0.26, 0.18, 1.2]} c={DARK} />
-          <Box p={[-0.63, 0.58, -1.2]} s={[0.26, 0.18, 1.0]} c={DARK} />
-          <Box p={[0.63, 0.58, -1.2]} s={[0.26, 0.18, 1.0]} c={DARK} />
-          {/* kulatá světla a mřížka chladiče */}
-          <Cyl p={[-0.4, 0.82, 1.92]} r={[Math.PI / 2, 0, 0]} s={[0.1, 0.1, 0.1, 8]} c="#f2e6b0" />
-          <Cyl p={[0.4, 0.82, 1.92]} r={[Math.PI / 2, 0, 0]} s={[0.1, 0.1, 0.1, 8]} c="#f2e6b0" />
-          <Box p={[0, 0.62, 1.92]} s={[0.5, 0.34, 0.06]} c={DARK} />
+          {/* stupačky, úzká karoserie, kapota-kapsle a vysoká zakulacená kabina */}
+          <Caps p={[-0.62, 0.42, 0]} r={[Math.PI / 2, 0, 0]} sc={[1, 0.5, 1]} radius={0.16} len={2.6} c={DARK} />
+          <Caps p={[0.62, 0.42, 0]} r={[Math.PI / 2, 0, 0]} sc={[1, 0.5, 1]} radius={0.16} len={2.6} c={DARK} />
+          <Caps p={[0, 0.62, -0.3]} r={[Math.PI / 2, 0, 0]} sc={[1.35, 0.95, 1]} radius={0.42} len={2.2} c={barva} cast />
+          <Caps p={[0, 0.72, 1.3]} r={[Math.PI / 2, 0, 0]} sc={[1.2, 0.9, 1]} radius={0.34} len={0.9} c={barva} cast />
+          <Sph p={[0, 1.28, -0.7]} sc={[0.72, 0.85, 0.7]} radius={0.95} c={barva} cast />
+          <Sph p={[0, 1.32, -0.1]} sc={[0.58, 0.45, 0.25]} radius={0.9} c={GLASS} />
+          {/* mřížka chladiče + kulatá světla na nožkách */}
+          <Cyl p={[0, 0.68, 1.85]} r={[Math.PI / 2, 0, 0]} args={[0.3, 0.34, 0.12, 14]} c={DARK} />
+          <Sph p={[-0.45, 0.98, 1.78]} radius={0.11} c="#fff4c2" e="#ffdd77" ei={0.9} />
+          <Sph p={[0.45, 0.98, 1.78]} radius={0.11} c="#fff4c2" e="#ffdd77" ei={0.9} />
+          <Cyl p={[-0.45, 0.88, 1.78]} args={[0.03, 0.03, 0.14, 8]} c={DARK} />
+          <Cyl p={[0.45, 0.88, 1.78]} args={[0.03, 0.03, 0.14, 8]} c={DARK} />
         </group>
       )}
 
-      {/* Nárazníky a hranatá světla (veterán má vlastní kulatá) */}
-      {typ !== 'veteran' && (
-        <group>
-          <Box p={[0, 0.34, hl - 0.02]} s={[sh.w + 0.04, 0.14, 0.12]} c={DARK} />
-          <Box p={[0, 0.34, -hl + 0.02]} s={[sh.w + 0.04, 0.14, 0.12]} c={DARK} />
-          <Box p={[hw - 0.32, 0.6, hl + 0.01]} s={[0.3, 0.13, 0.06]} c="#ffe9a8" />
-          <Box p={[-hw + 0.32, 0.6, hl + 0.01]} s={[0.3, 0.13, 0.06]} c="#ffe9a8" />
-          <Box p={[hw - 0.32, 0.6, -hl - 0.01]} s={[0.3, 0.13, 0.06]} c="#b02020" />
-          <Box p={[-hw + 0.32, 0.6, -hl - 0.01]} s={[0.3, 0.13, 0.06]} c="#b02020" />
-        </group>
-      )}
+      {/* Nárazníky-kapsle a světla (veterán má vlastní světla nahoře) */}
+      <Caps p={[0, 0.36, hl - 0.05]} r={[0, 0, Math.PI / 2]} radius={0.09} len={sh.w * 0.72} c="#dfe2e6" />
+      <Caps p={[0, 0.36, -hl + 0.05]} r={[0, 0, Math.PI / 2]} radius={0.09} len={sh.w * 0.72} c="#dfe2e6" />
+      {typ !== 'veteran' && <CarLights w={sh.w} hl={hl + 0.02} />}
 
-      {/* 4 kola */}
+      {/* Boubelaté blatníky + 4 velká kola s bílými boky */}
       {[[1, 1], [-1, 1], [1, -1], [-1, -1]].map(([sx, sz], i) => (
-        <Wheel key={i} refFn={addWheel} p={[sx * (hw - 0.05), sh.wr, sz * sh.wz]} radius={sh.wr} />
+        <group key={i}>
+          <Fender p={[sx * (hw - 0.06), sh.wr + 0.05, sz * sh.wz]} wr={sh.wr} c={barva} />
+          <Wheel refFn={addWheel} p={[sx * (hw - 0.05), sh.wr, sz * sh.wz]} radius={sh.wr} />
+        </group>
       ))}
     </group>
   );
@@ -472,30 +599,36 @@ function CarModel({ v, animRef }) {
 
 function BusModel({ v, animRef }) {
   const addWheel = useWheels(animRef);
-  const barva = v.barva || '#b3342e';
+  const barva = v.barva || '#e0442f';
   return (
     <group>
-      <Box p={[0, 1.5, 0]} s={[2.3, 2.2, 9]} c={barva} cast />
-      {/* pás oken kolem dokola + čelní a zadní sklo */}
-      <Box p={[0, 2.05, 0]} s={[2.34, 0.6, 8.2]} c={GLASS} />
-      <Box p={[0, 1.95, 4.51]} s={[1.9, 0.8, 0.04]} c={GLASS} />
-      <Box p={[0, 1.95, -4.51]} s={[1.9, 0.6, 0.04]} c={GLASS} />
+      {/* buclatý trup — jedna velká kapsle */}
+      <Caps p={[0, 1.45, 0]} r={[Math.PI / 2, 0, 0]} sc={[0.87, 1.02, 1]} radius={1.32} len={6.3} c={barva} cast />
+      {/* velké čelní a zadní sklo */}
+      <Sph p={[0, 1.85, 4.3]} sc={[1, 0.7, 0.3]} radius={0.95} c={GLASS} />
+      <Sph p={[0, 1.85, -4.3]} sc={[1, 0.55, 0.3]} radius={0.95} c={GLASS} />
+      {/* řada kulatých bočních oken */}
+      {[-3.1, -1.55, 0, 1.55, 3.1].map((z) =>
+        [-1, 1].map((sx) => (
+          <Sph key={`${z}-${sx}`} p={[sx * 1.02, 2.05, z]} sc={[0.16, 0.85, 1]} radius={0.5} c={GLASS} />
+        ))
+      )}
       {/* dveře na pravé straně */}
-      <Box p={[1.16, 1.15, 2.6]} s={[0.05, 1.5, 0.85]} c={DARK} />
-      <Box p={[1.16, 1.15, -0.6]} s={[0.05, 1.5, 0.85]} c={DARK} />
-      {/* klimatizace na střeše */}
-      <Box p={[0, 2.7, 0.5]} s={[1.5, 0.22, 2.6]} c="#c9c9c2" />
+      <Sph p={[1.04, 1.2, 2.4]} sc={[0.14, 1, 0.6]} radius={0.75} c={DARK} />
+      <Sph p={[1.04, 1.2, -0.6]} sc={[0.14, 1, 0.6]} radius={0.75} c={DARK} />
+      {/* klimatizace — bílý bochánek na střeše */}
+      <Caps p={[0, 2.78, 0.4]} r={[Math.PI / 2, 0, 0]} sc={[1, 0.4, 1]} radius={0.55} len={1.8} c={WHITE} />
       {/* nárazníky a světla */}
-      <Box p={[0, 0.5, 4.52]} s={[2.3, 0.3, 0.1]} c={DARK} />
-      <Box p={[0, 0.5, -4.52]} s={[2.3, 0.3, 0.1]} c={DARK} />
-      <Box p={[0.85, 0.8, 4.53]} s={[0.35, 0.16, 0.06]} c="#ffe9a8" />
-      <Box p={[-0.85, 0.8, 4.53]} s={[0.35, 0.16, 0.06]} c="#ffe9a8" />
-      <Box p={[0.85, 0.8, -4.53]} s={[0.35, 0.16, 0.06]} c="#b02020" />
-      <Box p={[-0.85, 0.8, -4.53]} s={[0.35, 0.16, 0.06]} c="#b02020" />
-      {/* 6 kol — přední náprava + zadní dvojnáprava */}
+      <Caps p={[0, 0.5, 4.42]} r={[0, 0, Math.PI / 2]} radius={0.12} len={1.6} c="#dfe2e6" />
+      <Caps p={[0, 0.5, -4.42]} r={[0, 0, Math.PI / 2]} radius={0.12} len={1.6} c="#dfe2e6" />
+      <Sph p={[-0.8, 0.85, 4.48]} radius={0.14} c="#fff4c2" e="#ffdd77" ei={0.9} />
+      <Sph p={[0.8, 0.85, 4.48]} radius={0.14} c="#fff4c2" e="#ffdd77" ei={0.9} />
+      <Sph p={[-0.8, 0.85, -4.48]} radius={0.1} c="#ff6655" e="#dd2222" ei={0.7} />
+      <Sph p={[0.8, 0.85, -4.48]} radius={0.1} c="#ff6655" e="#dd2222" ei={0.7} />
+      {/* 6 velkých kol — přední náprava + zadní dvojnáprava */}
       {[3.1, -2.1, -3.2].map((z) =>
         [1, -1].map((sx) => (
-          <Wheel key={`${z}-${sx}`} refFn={addWheel} p={[sx * 1.05, 0.4, z]} radius={0.4} width={0.26} />
+          <Wheel key={`${z}-${sx}`} refFn={addWheel} p={[sx * 1.0, 0.44, z]} radius={0.44} width={0.28} />
         ))
       )}
     </group>
@@ -504,111 +637,135 @@ function BusModel({ v, animRef }) {
 
 function TramModel({ v, animRef }) {
   const addWheel = useWheels(animRef);
-  const dolni = v.barva || '#b3342e';
-  const horni = v.krem || '#efe6c8';
+  const dolni = v.barva || '#e0442f';
+  const horni = v.krem || '#f5ecce';
   return (
     <group>
-      {/* dvoubarevná skříň: dole červená, nahoře krémová s pásem oken */}
-      <Box p={[0, 0.95, 0]} s={[2.1, 1.1, 10.5]} c={dolni} cast />
-      <Box p={[0, 2.0, 0]} s={[2.1, 1.0, 10.3]} c={horni} cast />
-      <Box p={[0, 2.1, 0]} s={[2.14, 0.6, 9.2]} c={GLASS} />
-      <Box p={[0, 2.0, 5.165]} s={[1.5, 0.7, 0.05]} c={GLASS} />
-      <Box p={[0, 2.0, -5.165]} s={[1.5, 0.7, 0.05]} c={GLASS} />
-      <Box p={[0, 2.58, 0]} s={[1.85, 0.16, 10.0]} c="#8a8f98" />
-      {/* kryt podvozku */}
-      <Box p={[0, 0.28, 0]} s={[1.8, 0.35, 9.6]} c={DARK} />
-      {/* pantograf */}
-      <group position={[0, 2.66, 1.6]}>
-        <Box p={[0, 0.05, 0]} s={[0.9, 0.1, 0.9]} c={DARK} />
-        <Box p={[0, 0.3, -0.16]} r={[0.55, 0, 0]} s={[0.05, 0.6, 0.05]} c="#3a3f46" />
-        <Box p={[0, 0.3, 0.16]} r={[-0.55, 0, 0]} s={[0.05, 0.6, 0.05]} c="#3a3f46" />
-        <Box p={[0, 0.58, 0]} s={[1.25, 0.05, 0.14]} c="#3a3f46" />
+      {/* zaoblená skříň s buclatým čumákem — krémová kapsle + spodní barevný pás */}
+      <Caps p={[0, 1.55, 0]} r={[Math.PI / 2, 0, 0]} sc={[1.03, 1.12, 1]} radius={1.02} len={8.4} c={horni} cast />
+      <Caps p={[0, 1.02, 0]} r={[Math.PI / 2, 0, 0]} sc={[1.08, 0.55, 1]} radius={1.03} len={8.4} c={dolni} cast />
+      {/* tmavý kryt podvozku */}
+      <Caps p={[0, 0.42, 0]} r={[Math.PI / 2, 0, 0]} sc={[0.85, 0.35, 1]} radius={1.0} len={7.6} c={DARK} />
+      {/* kulatá boční okna + velká čelní/zadní skla */}
+      {[-3.9, -2.6, -1.3, 0, 1.3, 2.6, 3.9].map((z) =>
+        [-1, 1].map((sx) => (
+          <Sph key={`${z}-${sx}`} p={[sx * 1.0, 2.1, z]} sc={[0.16, 1, 1]} radius={0.44} c={GLASS} />
+        ))
+      )}
+      <Sph p={[0, 2.0, 5.05]} sc={[0.75, 0.6, 0.3]} radius={1.0} c={GLASS} />
+      <Sph p={[0, 2.0, -5.05]} sc={[0.75, 0.6, 0.3]} radius={1.0} c={GLASS} />
+      {/* střecha */}
+      <Caps p={[0, 2.62, 0]} r={[Math.PI / 2, 0, 0]} sc={[0.8, 0.3, 1]} radius={0.95} len={7.8} c="#9aa0aa" />
+      {/* pantograf z tenkých válců */}
+      <group position={[0, 2.8, 1.6]}>
+        <Cyl p={[0, 0.04, 0]} args={[0.35, 0.42, 0.1, 14]} c={DARK} />
+        <Cyl p={[0, 0.3, -0.14]} r={[0.55, 0, 0]} args={[0.03, 0.03, 0.55, 10]} c="#4a505a" />
+        <Cyl p={[0, 0.3, 0.14]} r={[-0.55, 0, 0]} args={[0.03, 0.03, 0.55, 10]} c="#4a505a" />
+        <Caps p={[0, 0.56, 0]} r={[0, 0, Math.PI / 2]} radius={0.035} len={1.1} c="#4a505a" />
       </group>
       {/* světla */}
-      <Box p={[0.6, 0.75, 5.26]} s={[0.25, 0.14, 0.05]} c="#ffe9a8" />
-      <Box p={[-0.6, 0.75, 5.26]} s={[0.25, 0.14, 0.05]} c="#ffe9a8" />
-      <Box p={[0.6, 0.75, -5.26]} s={[0.25, 0.14, 0.05]} c="#b02020" />
-      <Box p={[-0.6, 0.75, -5.26]} s={[0.25, 0.14, 0.05]} c="#b02020" />
-      {/* malá kola pod krytem */}
+      <Sph p={[-0.55, 0.85, 5.15]} radius={0.12} c="#fff4c2" e="#ffdd77" ei={0.9} />
+      <Sph p={[0.55, 0.85, 5.15]} radius={0.12} c="#fff4c2" e="#ffdd77" ei={0.9} />
+      <Sph p={[-0.55, 0.85, -5.15]} radius={0.09} c="#ff6655" e="#dd2222" ei={0.7} />
+      <Sph p={[0.55, 0.85, -5.15]} radius={0.09} c="#ff6655" e="#dd2222" ei={0.7} />
+      {/* malá kola schovaná pod krytem */}
       {[[1, 3.4], [-1, 3.4], [1, -3.4], [-1, -3.4]].map(([sx, z], i) => (
-        <Wheel key={i} refFn={addWheel} p={[sx * 0.8, 0.22, z]} radius={0.22} width={0.16} />
+        <Wheel key={i} refFn={addWheel} p={[sx * 0.8, 0.24, z]} radius={0.24} width={0.16} />
       ))}
     </group>
   );
 }
 
-/* ---------- Statika ---------- */
+/* ---------- Statika — zaoblená kreslená ---------- */
 
 function StromModel({ v }) {
-  const listy = v.listy || '#3e7c33';
-  const kmen = v.kmen || '#6b4a2b';
+  const listy = v.listy || '#4f9440';
+  const kmen = v.kmen || '#7d5533';
   if (v.tvar === 'jehlicnaty') {
-    // jehličnan — kmen + tři patra kuželů
+    // jehličnan — kmen + tři patra oblých kuželů se špičkou-kuličkou
     return (
       <group>
-        <Cyl p={[0, 0.4, 0]} s={[0.13, 0.18, 0.8, 7]} c={kmen} cast />
-        <Cyl p={[0, 1.15, 0]} s={[0.02, 0.85, 1.1, 7]} c={listy} cast />
-        <Cyl p={[0, 1.95, 0]} s={[0.02, 0.65, 1.0, 7]} c={listy} cast />
-        <Cyl p={[0, 2.65, 0]} s={[0.02, 0.45, 0.9, 7]} c={listy} />
+        <Cyl p={[0, 0.4, 0]} args={[0.13, 0.2, 0.8, 12]} c={kmen} cast />
+        <Cone p={[0, 1.2, 0]} args={[0.85, 1.1, 16]} c={listy} cast />
+        <Cone p={[0, 1.95, 0]} args={[0.65, 1.0, 16]} c={listy} cast />
+        <Cone p={[0, 2.6, 0]} args={[0.45, 0.9, 16]} c={listy} />
+        <Sph p={[0, 3.05, 0]} radius={0.1} c={listy} />
       </group>
     );
   }
   if (v.tvar === 'kulaty') {
-    // kulatá koruna z low-poly koule
+    // kulatý strom — lízátko: kmen + jedna velká koule
     return (
       <group>
-        <Cyl p={[0, 0.6, 0]} s={[0.14, 0.19, 1.2, 7]} c={kmen} cast />
-        <Ball p={[0, 2.0, 0]} radius={1.0} sc={[1, 0.9, 1]} c={listy} cast />
+        <Cyl p={[0, 0.6, 0]} args={[0.14, 0.21, 1.2, 12]} c={kmen} cast />
+        <Sph p={[0, 2.05, 0]} sc={[1, 0.95, 1]} radius={1.0} c={listy} cast />
+        <Sph p={[0.55, 2.6, 0.3]} radius={0.35} c={listy} />
       </group>
     );
   }
-  // listnatý — hranatá koruna z krabic
+  // listnatý — koruna-obláček z překrývajících se koulí
   return (
     <group>
-      <Cyl p={[0, 0.65, 0]} s={[0.15, 0.2, 1.3, 7]} c={kmen} cast />
-      <Box p={[0, 1.9, 0]} s={[1.5, 1.1, 1.5]} c={listy} cast />
-      <Box p={[0, 2.65, 0]} s={[1.0, 0.6, 1.0]} c={listy} cast />
-      <Box p={[0.55, 1.6, 0.4]} s={[0.7, 0.6, 0.7]} c={listy} />
+      <Cyl p={[0, 0.65, 0]} args={[0.15, 0.23, 1.3, 12]} c={kmen} cast />
+      <Sph p={[0, 2.2, 0]} radius={0.85} c={listy} cast />
+      <Sph p={[0.55, 1.85, 0.3]} radius={0.6} c={listy} cast />
+      <Sph p={[-0.5, 1.9, -0.25]} radius={0.58} c={listy} />
+      <Sph p={[0.1, 2.75, -0.15]} radius={0.45} c={listy} />
     </group>
   );
 }
 
 function KerModel({ v }) {
-  const barva = v.barva || '#3e7c33';
-  // nízká hrbolatá koule
+  const barva = v.barva || '#4f9440';
+  // hromádka měkkých koulí
   return (
     <group>
-      <Ball p={[0, 0.35, 0]} radius={0.55} sc={[1, 0.62, 1]} c={barva} cast />
-      <Ball p={[0.3, 0.3, 0.2]} radius={0.3} sc={[1, 0.7, 1]} c={barva} />
+      <Sph p={[0, 0.32, 0]} sc={[1, 0.7, 1]} radius={0.52} c={barva} cast />
+      <Sph p={[0.32, 0.28, 0.18]} sc={[1, 0.75, 1]} radius={0.32} c={barva} cast />
+      <Sph p={[-0.3, 0.3, -0.12]} sc={[1, 0.8, 1]} radius={0.28} c={barva} />
+    </group>
+  );
+}
+
+// Kreslený květ — věneček okvětních koulí kolem středu (míří vzhůru)
+function Kvet({ p = [0, 0, 0], barva, stred = '#f2d54a', r = 0.055 }) {
+  return (
+    <group position={p}>
+      {[0, 1, 2, 3, 4, 5].map((i) => {
+        const ang = (i / 6) * Math.PI * 2;
+        return (
+          <Sph key={i} p={[Math.cos(ang) * r * 1.5, 0, Math.sin(ang) * r * 1.5]} sc={[1, 0.55, 1]} radius={r} c={barva} />
+        );
+      })}
+      <Sph p={[0, 0.02, 0]} sc={[1, 0.7, 1]} radius={r * 0.8} c={stred} />
     </group>
   );
 }
 
 function KvetinaModel({ v }) {
-  const barva = v.barva || '#d94a43';
+  const barva = v.barva || '#e0524a';
   return (
     <group>
-      {/* stonek s lístky a barevný květ */}
-      <Cyl p={[0, 0.19, 0]} s={[0.02, 0.025, 0.38, 5]} c="#3e7c33" />
-      <Box p={[-0.06, 0.14, 0]} r={[0, 0, 0.5]} s={[0.12, 0.03, 0.05]} c="#3e7c33" />
-      <Box p={[0.06, 0.1, 0]} r={[0, 0, -0.5]} s={[0.12, 0.03, 0.05]} c="#3e7c33" />
-      <Ball p={[0, 0.44, 0]} radius={0.1} c={barva} />
-      <Ball p={[0, 0.51, 0]} radius={0.045} c="#e8d34a" />
+      {/* stonek s lístky-kapkami a věnečkem okvětních koulí */}
+      <Cyl p={[0, 0.2, 0]} args={[0.018, 0.026, 0.4, 10]} c="#4f9440" />
+      <Sph p={[-0.07, 0.15, 0]} r={[0, 0, 0.6]} sc={[1.6, 0.4, 0.7]} radius={0.05} c="#4f9440" />
+      <Sph p={[0.07, 0.1, 0]} r={[0, 0, -0.6]} sc={[1.6, 0.4, 0.7]} radius={0.05} c="#4f9440" />
+      <Kvet p={[0, 0.44, 0]} barva={barva} r={0.06} />
     </group>
   );
 }
 
 function KvetinacModel({ v }) {
-  const kvety = v.kvety || ['#d94a43', '#e0c23c', '#d94a43'];
+  const kvety = v.kvety || ['#e0524a', '#f2d54a', '#e0524a'];
   return (
     <group>
-      {/* terakotový truhlík s hlínou a řádkou květů */}
-      <Box p={[0, 0.17, 0]} s={[1.2, 0.3, 0.42]} c="#9c5236" cast />
-      <Box p={[0, 0.33, 0]} s={[1.1, 0.05, 0.34]} c="#3d2b1c" />
+      {/* zaoblený terakotový truhlík (kapsle naležato) s hlínou a řádkou květů */}
+      <Caps p={[0, 0.2, 0]} r={[0, 0, Math.PI / 2]} sc={[1, 1, 0.42]} radius={0.22} len={0.76} c="#b06040" cast />
+      <Caps p={[0, 0.3, 0]} r={[0, 0, Math.PI / 2]} sc={[1, 0.9, 0.36]} radius={0.19} len={0.72} c="#46331f" />
       {kvety.map((barva, i) => (
-        <group key={i} position={[-0.35 + i * 0.35, 0.35, 0]}>
-          <Cyl p={[0, 0.1, 0]} s={[0.015, 0.02, 0.2, 5]} c="#3e7c33" />
-          <Ball p={[0, 0.24, 0]} radius={0.07} c={barva} />
+        <group key={i} position={[-0.33 + i * 0.33, 0.33, 0]}>
+          <Cyl p={[0, 0.1, 0]} args={[0.014, 0.02, 0.2, 8]} c="#4f9440" />
+          <Kvet p={[0, 0.22, 0]} barva={barva} r={0.045} />
         </group>
       ))}
     </group>
@@ -617,95 +774,106 @@ function KvetinacModel({ v }) {
 
 function BudkaModel({ v }) {
   if (v.typ === 'novinova') {
-    // trafika — plná budka s okénkem, pultem a stříškou
+    // trafika — kulatý kiosek s kuželovou stříškou a okénkem s pultem
+    const barva = v.barva || '#5a7d94';
     return (
       <group>
-        <Box p={[0, 1.1, 0]} s={[1.1, 2.2, 1.1]} c={v.barva || '#5a6d7d'} cast />
-        <Box p={[0, 1.4, 0.556]} s={[0.8, 0.5, 0.02]} c={GLASS} />
-        <Box p={[0, 1.1, 0.58]} s={[0.9, 0.08, 0.18]} c="#6b4a2b" />
-        <Box p={[-0.2, 1.17, 0.6]} s={[0.2, 0.05, 0.14]} c="#e8e4da" />
-        <Box p={[0.15, 1.17, 0.6]} s={[0.2, 0.05, 0.14]} c="#d94a43" />
-        <Box p={[0, 2.32, 0.1]} r={[0.1, 0, 0]} s={[1.25, 0.12, 1.45]} c="#3a3f46" cast />
+        <Cyl p={[0, 1.0, 0]} args={[0.55, 0.6, 2.0, 16]} c={barva} cast />
+        <Sph p={[0, 1.45, 0.48]} sc={[1, 0.75, 0.35]} radius={0.42} c={GLASS} />
+        {/* pult s novinami */}
+        <Caps p={[0, 1.08, 0.56]} r={[0, 0, Math.PI / 2]} sc={[1, 1, 0.6]} radius={0.09} len={0.7} c="#7d5533" />
+        <Sph p={[-0.18, 1.16, 0.56]} sc={[1.6, 0.35, 1]} radius={0.09} c={WHITE} />
+        <Sph p={[0.16, 1.16, 0.56]} sc={[1.6, 0.35, 1]} radius={0.09} c="#e0524a" />
+        {/* kuželová stříška s kuličkou */}
+        <Cone p={[0, 2.25, 0]} args={[0.78, 0.55, 16]} c="#3f4650" cast />
+        <Sph p={[0, 2.58, 0]} radius={0.09} c="#f2c53d" />
       </group>
     );
   }
-  // telefonní budka — oranžový rám + prosklené stěny
-  const o = v.barva || '#e07818';
+  // telefonní budka — oranžový válec se sklem a kopulí
+  const o = v.barva || '#f28422';
   return (
     <group>
-      <Box p={[0, 0.09, 0]} s={[1.05, 0.18, 1.05]} c={o} />
-      <Box p={[0, 1.25, 0]} s={[0.92, 2.14, 0.92]} c="#9fc7d8" />
-      {[[-0.46, -0.46], [0.46, -0.46], [-0.46, 0.46], [0.46, 0.46]].map(([x, z], i) => (
-        <Box key={i} p={[x, 1.2, z]} s={[0.12, 2.1, 0.12]} c={o} cast />
+      <Cyl p={[0, 0.11, 0]} args={[0.55, 0.6, 0.22, 16]} c={o} cast />
+      <Cyl p={[0, 1.2, 0]} args={[0.45, 0.45, 1.95, 16]} c={GLASS} />
+      {/* rohové sloupky na kruhu */}
+      {[0.25, 0.75, 1.25, 1.75].map((k) => (
+        <Cyl key={k} p={[Math.cos(k * Math.PI) * 0.45, 1.2, Math.sin(k * Math.PI) * 0.45]} args={[0.05, 0.05, 2.0, 10]} c={o} cast />
       ))}
-      <Box p={[0, 2.33, 0]} s={[1.15, 0.18, 1.15]} c={o} cast />
+      <Tor p={[0, 2.2, 0]} r={[Math.PI / 2, 0, 0]} args={[0.48, 0.07, 10, 20]} c={o} />
+      <Sph p={[0, 2.28, 0]} sc={[1, 0.55, 1]} radius={0.52} c={o} cast />
+      <Sph p={[0, 2.48, 0]} radius={0.07} c={o} />
     </group>
   );
 }
 
 function StanekModel({ v }) {
-  const plachta = v.plachta || '#b3342e';
+  const plachta = v.plachta || '#e0442f';
   return (
     <group>
-      {/* zadní a boční stěny */}
-      <Box p={[0, 1.05, -0.85]} s={[2.4, 2.1, 0.12]} c="#8a6a42" cast />
-      <Box p={[-1.14, 1.05, -0.3]} s={[0.12, 2.1, 1.2]} c="#8a6a42" />
-      <Box p={[1.14, 1.05, -0.3]} s={[0.12, 2.1, 1.2]} c="#8a6a42" />
-      {/* pult s přední deskou a zbožím */}
-      <Box p={[0, 0.98, 0.55]} s={[2.4, 0.12, 0.55]} c="#6b4a2b" cast />
-      <Box p={[0, 0.5, 0.76]} s={[2.4, 0.86, 0.1]} c={plachta} />
-      <Box p={[-0.7, 1.1, 0.5]} s={[0.35, 0.14, 0.3]} c="#e0c23c" />
-      <Box p={[0.1, 1.12, 0.55]} s={[0.3, 0.18, 0.26]} c="#3e7a3e" />
-      <Box p={[0.75, 1.09, 0.5]} s={[0.28, 0.12, 0.28]} c="#d94a43" />
-      {/* přední sloupky + střecha */}
-      <Box p={[-1.1, 1.2, 0.78]} s={[0.1, 2.4, 0.1]} c="#6b4a2b" cast />
-      <Box p={[1.1, 1.2, 0.78]} s={[0.1, 2.4, 0.1]} c="#6b4a2b" cast />
-      <Box p={[0, 2.42, 0]} r={[0.06, 0, 0]} s={[2.6, 0.12, 2.0]} c="#6b4a2b" cast />
-      {/* pruhovaná markýza */}
-      {[0, 1, 2, 3, 4].map((i) => (
-        <Box key={i} p={[-1.04 + i * 0.52, 2.26, 0.95]} r={[0.5, 0, 0]} s={[0.5, 0.45, 0.06]} c={i % 2 ? '#efe6c8' : plachta} />
+      {/* zadní stěna — zaoblená deska z kapsle */}
+      <Caps p={[0, 1.0, -0.8]} r={[0, 0, Math.PI / 2]} sc={[1, 1, 0.16]} radius={0.9} len={1.0} c="#9c7a4d" cast />
+      {/* čtyři dřevěné sloupky */}
+      {[[-1.05, 0.75], [1.05, 0.75], [-1.05, -0.75], [1.05, -0.75]].map(([x, z], i) => (
+        <Cyl key={i} p={[x, 1.1, z]} args={[0.06, 0.07, 2.2, 12]} c="#7d5533" cast />
+      ))}
+      {/* pult (kapsle naležato) s přední plachtou a kopečky zboží */}
+      <Caps p={[0, 0.95, 0.5]} r={[0, 0, Math.PI / 2]} sc={[1, 1, 0.5]} radius={0.32} len={1.9} c="#8a6238" cast />
+      <Caps p={[0, 0.45, 0.66]} r={[0, 0, Math.PI / 2]} sc={[1, 1, 0.18]} radius={0.42} len={1.7} c={plachta} />
+      <Sph p={[-0.6, 1.2, 0.45]} sc={[1.3, 0.7, 1]} radius={0.16} c="#f2d54a" />
+      <Sph p={[0.05, 1.22, 0.5]} sc={[1.2, 0.8, 1]} radius={0.15} c="#4f9440" />
+      <Sph p={[0.65, 1.2, 0.45]} radius={0.13} c="#e0524a" />
+      {/* oblá stříška-bochánek + zubatý lem markýzy z půlkoulí */}
+      <Caps p={[0, 2.42, 0]} r={[0, 0, Math.PI / 2]} sc={[1, 0.38, 1.15]} radius={0.72} len={1.9} c={plachta} cast />
+      {[-1.0, -0.5, 0, 0.5, 1.0].map((x, i) => (
+        <Sph key={i} p={[x, 2.32, 0.82]} radius={0.19} c={i % 2 ? WHITE : plachta} />
       ))}
     </group>
   );
 }
 
 function BillboardModel({ v }) {
-  const pruhy = v.pruhy || ['#d94a43', '#e0c23c', '#2e5fb3'];
+  const pruhy = v.pruhy || ['#e0524a', '#f2d54a', '#3a6fd0'];
   return (
     <group>
-      {/* dvě nohy + deska s barevnými pruhy (abstraktní reklama) */}
-      <Cyl p={[-1.2, 1.0, 0]} s={[0.09, 0.11, 2.0, 7]} c="#4a4f57" cast />
-      <Cyl p={[1.2, 1.0, 0]} s={[0.09, 0.11, 2.0, 7]} c="#4a4f57" cast />
-      <Box p={[0, 2.7, -0.05]} s={[3.9, 2.0, 0.1]} c="#3a3f46" cast />
-      <Box p={[0, 2.7, 0.01]} s={[3.7, 1.8, 0.06]} c="#e8e4da" />
-      {pruhy.map((barva, i) => (
-        <Box key={i} p={[-1.15 + i * 1.15, 2.7, 0.05]} s={[1.05, 1.5, 0.04]} c={barva} />
-      ))}
+      {/* dvě nohy-válce + deska se zaoblenými rohy (kapsle naležato) */}
+      <Cyl p={[-1.2, 1.0, 0]} args={[0.09, 0.12, 2.0, 12]} c="#565c66" cast />
+      <Cyl p={[1.2, 1.0, 0]} args={[0.09, 0.12, 2.0, 12]} c="#565c66" cast />
+      <Caps p={[0, 2.7, -0.06]} r={[0, 0, Math.PI / 2]} sc={[1, 1, 0.22]} radius={0.9} len={2.1} c="#3f4650" cast />
+      <Caps p={[0, 2.7, 0.02]} r={[0, 0, Math.PI / 2]} sc={[0.92, 0.95, 0.18]} radius={0.9} len={2.1} c={WHITE} />
+      {/* abstraktní reklama — tři různě velké barevné bubliny */}
+      <Sph p={[-1.05, 2.65, 0.14]} sc={[1, 1, 0.25]} radius={0.62} c={pruhy[0]} />
+      <Sph p={[0.35, 2.95, 0.14]} sc={[1, 1, 0.25]} radius={0.42} c={pruhy[1]} />
+      <Sph p={[1.15, 2.35, 0.14]} sc={[1, 1, 0.25]} radius={0.3} c={pruhy[2]} />
+      {/* lampička nad deskou */}
+      <Cyl p={[0, 3.85, 0.1]} r={[0.5, 0, 0]} args={[0.03, 0.03, 0.5, 8]} c="#565c66" />
+      <Sph p={[0, 3.95, 0.28]} radius={0.09} c="#fff4c2" e="#ffdd77" ei={0.8} />
     </group>
   );
 }
 
 function KosModel({ v }) {
-  const barva = v.barva || '#3e6b3e';
+  const barva = v.barva || '#4a8a4a';
   return (
     <group>
-      <Cyl p={[0, 0.42, 0]} s={[0.18, 0.15, 0.8, 8]} c={barva} cast />
-      <Cyl p={[0, 0.84, 0]} s={[0.2, 0.18, 0.07, 8]} c={DARK} />
+      {/* soudkovitý koš s obroučkou */}
+      <Cyl p={[0, 0.42, 0]} args={[0.17, 0.14, 0.78, 14]} c={barva} cast />
+      <Tor p={[0, 0.82, 0]} r={[Math.PI / 2, 0, 0]} args={[0.17, 0.045, 10, 18]} c={DARK} />
+      <Tor p={[0, 0.16, 0]} r={[Math.PI / 2, 0, 0]} args={[0.155, 0.03, 8, 18]} c={DARK} />
     </group>
   );
 }
 
 function PopelniceModel({ v }) {
-  const barva = v.barva || '#33363c';
+  const barva = v.barva || '#3f434c';
   return (
     <group>
-      {/* kvádr s odklopným víkem, madlem a kolečky */}
-      <Box p={[0, 0.12, 0.1]} s={[0.7, 0.1, 0.5]} c={DARK} />
-      <Box p={[0, 0.6, 0]} s={[0.8, 0.9, 0.65]} c={barva} cast />
-      <Box p={[0, 1.1, -0.03]} r={[0.08, 0, 0]} s={[0.84, 0.09, 0.72]} c={v.viko || DARK} />
-      <Box p={[0, 1.13, 0.3]} s={[0.3, 0.04, 0.08]} c={DARK} />
-      <Cyl p={[-0.28, 0.07, -0.24]} r={[0, 0, Math.PI / 2]} s={[0.07, 0.07, 0.06, 8]} c={DARK} />
-      <Cyl p={[0.28, 0.07, -0.24]} r={[0, 0, Math.PI / 2]} s={[0.07, 0.07, 0.06, 8]} c={DARK} />
+      {/* baculatý sud s kopulovitým víkem, madlem a kolečky */}
+      <Cyl p={[0, 0.6, 0]} args={[0.36, 0.3, 0.9, 16]} c={barva} cast />
+      <Sph p={[0, 1.05, 0]} sc={[1, 0.42, 1]} radius={0.4} c={v.viko || DARK} cast />
+      <Caps p={[0, 1.2, 0.16]} r={[0, 0, Math.PI / 2]} radius={0.035} len={0.22} c={DARK} />
+      <Cyl p={[-0.2, 0.08, -0.22]} r={[0, 0, Math.PI / 2]} args={[0.08, 0.08, 0.06, 12]} c={DARK} />
+      <Cyl p={[0.2, 0.08, -0.22]} r={[0, 0, Math.PI / 2]} args={[0.08, 0.08, 0.06, 12]} c={DARK} />
     </group>
   );
 }
@@ -713,26 +881,69 @@ function PopelniceModel({ v }) {
 function SchrankaModel() {
   return (
     <group>
-      {/* oranžová poštovní schránka na noze */}
-      <Cyl p={[0, 0.35, 0]} s={[0.05, 0.06, 0.7, 7]} c="#3a3f46" cast />
-      <Box p={[0, 0.9, 0]} s={[0.5, 0.55, 0.35]} c="#e07818" cast />
-      <Box p={[0, 1.2, 0]} s={[0.54, 0.06, 0.39]} c="#c9660f" />
-      <Box p={[0, 1.05, 0.178]} s={[0.3, 0.03, 0.01]} c={DARK} />
+      {/* oranžová schránka — zaoblené tělíčko (kapsle) na nožce */}
+      <Cyl p={[0, 0.35, 0]} args={[0.05, 0.07, 0.7, 12]} c="#3f4650" cast />
+      <Caps p={[0, 0.92, 0]} sc={[1.05, 1, 0.72]} radius={0.24} len={0.28} c="#f28422" cast />
+      {/* štěrbina na dopisy + cedulka */}
+      <Caps p={[0, 1.02, 0.165]} r={[0, 0, Math.PI / 2]} sc={[1, 1, 0.5]} radius={0.025} len={0.22} c={DARK} />
+      <Sph p={[0, 0.84, 0.17]} sc={[1.4, 0.8, 0.3]} radius={0.09} c={WHITE} />
     </group>
   );
 }
 
 /* ---------- Hlavní komponenta ---------- */
 
+
+// Custom asset z editoru 3D modelů — seznam primitiv {shape, pos, rot, args, color, emissive}
+function CustomPartsModel({ parts }) {
+  return (
+    <group>
+      {(parts || []).map((part, i) => {
+        const args = part.args || [];
+        return (
+          <mesh
+            key={i}
+            position={part.pos || [0, 0, 0]}
+            rotation={part.rot || [0, 0, 0]}
+            scale={part.scale || [1, 1, 1]}
+            castShadow
+          >
+            {part.shape === 'sphere' && <sphereGeometry args={[args[0] ?? 0.3, 12, 10]} />}
+            {part.shape === 'capsule' && (
+              <capsuleGeometry args={[args[0] ?? 0.15, args[1] ?? 0.4, 4, 10]} />
+            )}
+            {part.shape === 'cylinder' && (
+              <cylinderGeometry args={[args[0] ?? 0.2, args[1] ?? 0.2, args[2] ?? 0.5, 12]} />
+            )}
+            {part.shape === 'cone' && <coneGeometry args={[args[0] ?? 0.25, args[1] ?? 0.5, 12]} />}
+            {(!part.shape || part.shape === 'box') && (
+              <boxGeometry args={[args[0] ?? 0.4, args[1] ?? 0.4, args[2] ?? 0.4]} />
+            )}
+            <ToonMat
+              color={part.color || '#cccccc'}
+              emissive={part.emissive || '#000000'}
+              emissiveIntensity={part.emissive ? 0.6 : 0}
+            />
+          </mesh>
+        );
+      })}
+    </group>
+  );
+}
+
 export default function AssetModel({ type, variant = 0, animRef = null }) {
+  // custom assety z administrace (definice dílů v katalogu)
+  const customDef = ASSET_TYPES[type];
+  if (customDef?.parts) return <CustomPartsModel parts={customDef.parts} />;
+
   const def = ASSET_TYPES[type];
   const vars = def?.variants || [];
   const n = Number.isFinite(variant) ? Math.floor(variant) : 0;
   const v = (vars.length ? vars[((n % vars.length) + vars.length) % vars.length] : null) || {};
 
-  // Lidé a zvířata sdílejí parametrické komponenty
-  if (PEOPLE[type]) return <BlockyPerson conf={PEOPLE[type](v)} animRef={animRef} />;
-  if (ANIMALS[type]) return <BlockyAnimal conf={ANIMALS[type](v)} animRef={animRef} />;
+  // Lidé a zvířata sdílejí parametrické kreslené komponenty
+  if (PEOPLE[type]) return <CartoonPerson conf={PEOPLE[type](v)} animRef={animRef} />;
+  if (ANIMALS[type]) return <CartoonAnimal conf={ANIMALS[type](v)} animRef={animRef} />;
 
   switch (type) {
     case 'strom': return <StromModel v={v} />;
@@ -746,11 +957,11 @@ export default function AssetModel({ type, variant = 0, animRef = null }) {
     case 'popelnice': return <PopelniceModel v={v} />;
     case 'schranka': return <SchrankaModel />;
     case 'zaparkovane_auto':
-    case 'auto': return <CarModel v={v} animRef={animRef} />;
+    case 'auto': return <CartoonCar v={v} animRef={animRef} />;
     case 'autobus': return <BusModel v={v} animRef={animRef} />;
     case 'tramvaj': return <TramModel v={v} animRef={animRef} />;
     default:
-      // Neznámý typ — šedý zástupný kvádr
-      return <Box p={[0, 0.5, 0]} s={[1, 1, 1]} c="#888888" cast />;
+      // Neznámý typ — šedá zástupná koule
+      return <Sph p={[0, 0.5, 0]} radius={0.5} c="#9a9a9a" cast />;
   }
 }

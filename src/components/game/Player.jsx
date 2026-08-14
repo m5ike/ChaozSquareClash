@@ -17,7 +17,8 @@ import {
   SLASH_PRESS_WINDOW_MS,
   effectiveSpread,
 } from '@/game/weaponsConfig.js';
-import { playerEffects, tickPlayerEffects } from '@/game/rewards.js';
+import { playerEffects, tickPlayerEffects, grantKillBonus } from '@/game/rewards.js';
+import { SPECIAL_WEAPON } from '@/game/weaponsConfig.js';
 import { BODY_GESTURES, FACE_GESTURES, randomGesture, getAutoGestureInterval } from '@/game/gestures.js';
 
 // First-person ovladač hráče: dynamická kapsle v Rapieru, kamera (yaw/pitch
@@ -107,6 +108,48 @@ export default function Player() {
     bus.on('restart-game', handleRestart);
     return () => bus.off('restart-game', handleRestart);
   }, [maxHealth]);
+
+  // Odměny: munice do slotů, zisk zbraně 4, bonus za zabití hráče/bota
+  useEffect(() => {
+    const onGrantAmmo = (info) => {
+      const weapons = character?.weapons || [];
+      const slots = info?.slot === 'all' ? weapons.map((_, i) => i) : [info?.slot];
+      for (const slot of slots) {
+        const w = weapons[slot];
+        const ammo = ammoRef.current[slot];
+        if (!w?.magSize || !ammo) continue;
+        // doplň zásobník + rezervu až na maximum
+        ammo.mag = w.magSize;
+        ammo.reserve = w.magSize * ((w.magazines || 1) - 1);
+      }
+      emitAmmo();
+    };
+    const onGrantWeapon4 = () => {
+      if (!character?.weapons || character.weapons.length > 5) return;
+      character.weapons.push({ ...SPECIAL_WEAPON });
+      const slot = character.weapons.length - 1;
+      ammoRef.current[slot] = {
+        mag: SPECIAL_WEAPON.magSize,
+        reserve: SPECIAL_WEAPON.magSize * (SPECIAL_WEAPON.magazines - 1),
+      };
+      bus.emit('loadout-changed');
+      // rovnou ji vezmi do ruky
+      input.weaponSwitch = slot;
+    };
+    const onEnemyKilled = () => grantKillBonus();
+    const onRemoteKilled = () => grantKillBonus();
+    bus.on('grant-ammo', onGrantAmmo);
+    bus.on('grant-weapon4', onGrantWeapon4);
+    bus.on('enemy-killed', onEnemyKilled);
+    bus.on('remote-player-killed', onRemoteKilled);
+    return () => {
+      bus.off('grant-ammo', onGrantAmmo);
+      bus.off('grant-weapon4', onGrantWeapon4);
+      bus.off('enemy-killed', onEnemyKilled);
+      bus.off('remote-player-killed', onRemoteKilled);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [character]);
 
   useFrame((_, delta) => {
     const body = bodyRef.current;
@@ -541,6 +584,12 @@ export default function Player() {
           zone = resolveHitZone(0.45 + Math.random() * 0.5, 0.05 + Math.random() * 0.2, frontal);
         }
         const hit = computeHitDamage(damage, zone, getProtection(enemy.character), 0.1);
+        // INSTANT KILL: sečná zbraň na headshot nebo do srdce zabíjí okamžitě
+        if (hit.headshot || hit.zone === 'hlava' || hit.zone === 'srdce') {
+          hit.damage = enemy.health + 9999;
+          hit.crit = true;
+          bus.emit('mode-event', { text: `⚔️ INSTANT KILL (${hit.zone})!` });
+        }
         enemy.health -= hit.damage;
         bus.emit('hit-enemy', {
           index: i,

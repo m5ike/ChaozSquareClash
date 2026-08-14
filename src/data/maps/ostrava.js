@@ -1,155 +1,1237 @@
-// Mapa „Ostrava — Dolní oblast" — industriální prostranství mezi halami
-// a paneláky, šedo-rezavá paleta, kontejnery místo beden, těžní věž uprostřed.
-
-const PALETTE = {
-  sky: '#5a6a7a', // zakouřené nebe
-  fog: '#3a4450', // hutná mlha
-  buildingA: '#7c7c80', // panelová šedá
-  buildingB: '#8c847a', // betonová
-  buildingC: '#62666e', // tmavě šedá
-  buildingD: '#9a5a36', // rezavá hala
-  buildingE: '#55555c', // antracit
-  buildingF: '#a86c48', // rez a cihla
-  monument: '#3e4246', // ocel těžní věže
-  wall: '#5a5a54', // beton
-  crate: '#3a6a9a', // kontejnerová modř (rez varianta '#8a4a2a')
-  tree: '#3a6a34',
-  trunk: '#3a281a',
-  roof: '#474e56', // plech
+// Ostrava — Dolní oblast — větší členitá mapa (generováno skriptem, verifikováno bez kolizí).
+// Aréna 68×48: městské bloky, ulice, obchody, 2× parkoviště.
+const map = {
+  id: "ostrava",
+  name: "Ostrava — Dolní oblast",
+  desc: "Industriální čtvrť s širokou třídou, vlečkami, halami a velkým parkovištěm.",
+  palette: {
+    sky: "#5a6a7a",
+    fog: "#3a4450",
+    buildingA: "#7c7c80",
+    buildingB: "#8c847a",
+    buildingC: "#62666e",
+    buildingD: "#9a5a36",
+    buildingE: "#55555c",
+    buildingF: "#a86c48",
+    monument: "#3e4246",
+    wall: "#5a5a54",
+    crate: "#3a6a9a",
+    tree: "#3a6a34",
+    trunk: "#3a281a",
+    roof: "#474e56"
+  },
+  centerpiece: "miningTower",
+  arena: {
+    width: 68,
+    depth: 48
+  },
+  buildings: [
+    {
+      pos: [
+        -25,
+        3.5,
+        -22.5
+      ],
+      size: [
+        8,
+        7,
+        3
+      ],
+      color: "#7c7c80"
+    },
+    {
+      pos: [
+        -15,
+        5,
+        -22.5
+      ],
+      size: [
+        8,
+        10,
+        3
+      ],
+      color: "#8c847a",
+      shop: {
+        awning: "#e74c3c",
+        sign: "#f9e04b"
+      }
+    },
+    {
+      pos: [
+        -5,
+        6.5,
+        -22.5
+      ],
+      size: [
+        8,
+        13,
+        3
+      ],
+      color: "#62666e"
+    },
+    {
+      pos: [
+        5,
+        4,
+        -22.5
+      ],
+      size: [
+        8,
+        8,
+        3
+      ],
+      color: "#9a5a36"
+    },
+    {
+      pos: [
+        15,
+        5.5,
+        -22.5
+      ],
+      size: [
+        8,
+        11,
+        3
+      ],
+      color: "#55555c",
+      shop: {
+        awning: "#2e86de",
+        sign: "#ffffff"
+      }
+    },
+    {
+      pos: [
+        25,
+        7,
+        -22.5
+      ],
+      size: [
+        8,
+        14,
+        3
+      ],
+      color: "#a86c48"
+    },
+    {
+      pos: [
+        -25,
+        4.5,
+        22.5
+      ],
+      size: [
+        8,
+        9,
+        3
+      ],
+      color: "#7c7c80"
+    },
+    {
+      pos: [
+        -15,
+        6,
+        22.5
+      ],
+      size: [
+        8,
+        12,
+        3
+      ],
+      color: "#8c847a",
+      shop: {
+        awning: "#27ae60",
+        sign: "#f4d03f"
+      }
+    },
+    {
+      pos: [
+        -5,
+        3.5,
+        22.5
+      ],
+      size: [
+        8,
+        7,
+        3
+      ],
+      color: "#62666e"
+    },
+    {
+      pos: [
+        5,
+        5,
+        22.5
+      ],
+      size: [
+        8,
+        10,
+        3
+      ],
+      color: "#9a5a36"
+    },
+    {
+      pos: [
+        15,
+        6.5,
+        22.5
+      ],
+      size: [
+        8,
+        13,
+        3
+      ],
+      color: "#55555c",
+      shop: {
+        awning: "#8e44ad",
+        sign: "#f5b7b1"
+      }
+    },
+    {
+      pos: [
+        25,
+        4,
+        22.5
+      ],
+      size: [
+        8,
+        8,
+        3
+      ],
+      color: "#a86c48"
+    },
+    {
+      pos: [
+        -32.5,
+        5.5,
+        -15
+      ],
+      size: [
+        3,
+        11,
+        8
+      ],
+      color: "#7c7c80"
+    },
+    {
+      pos: [
+        -32.5,
+        7,
+        -5
+      ],
+      size: [
+        3,
+        14,
+        8
+      ],
+      color: "#8c847a",
+      shop: {
+        awning: "#e67e22",
+        sign: "#ecf0f1"
+      }
+    },
+    {
+      pos: [
+        -32.5,
+        4.5,
+        5
+      ],
+      size: [
+        3,
+        9,
+        8
+      ],
+      color: "#62666e"
+    },
+    {
+      pos: [
+        -32.5,
+        6,
+        15
+      ],
+      size: [
+        3,
+        12,
+        8
+      ],
+      color: "#9a5a36"
+    },
+    {
+      pos: [
+        32.5,
+        3.5,
+        -15
+      ],
+      size: [
+        3,
+        7,
+        8
+      ],
+      color: "#55555c",
+      shop: {
+        awning: "#16a085",
+        sign: "#fde3a7"
+      }
+    },
+    {
+      pos: [
+        32.5,
+        5,
+        -5
+      ],
+      size: [
+        3,
+        10,
+        8
+      ],
+      color: "#a86c48"
+    },
+    {
+      pos: [
+        32.5,
+        6.5,
+        5
+      ],
+      size: [
+        3,
+        13,
+        8
+      ],
+      color: "#7c7c80"
+    },
+    {
+      pos: [
+        32.5,
+        4,
+        15
+      ],
+      size: [
+        3,
+        8,
+        8
+      ],
+      color: "#8c847a",
+      shop: {
+        awning: "#e74c3c",
+        sign: "#f9e04b"
+      }
+    },
+    {
+      pos: [
+        -21,
+        1.5,
+        -10
+      ],
+      size: [
+        5,
+        3,
+        6
+      ],
+      shop: {
+        awning: "#2e86de",
+        sign: "#ffffff"
+      }
+    },
+    {
+      pos: [
+        -15,
+        0.5,
+        -10
+      ],
+      size: [
+        5,
+        1,
+        6
+      ]
+    },
+    {
+      pos: [
+        15,
+        5.5,
+        -10
+      ],
+      size: [
+        5,
+        11,
+        6
+      ],
+      color: "#a86c48",
+      shop: {
+        awning: "#27ae60",
+        sign: "#f4d03f"
+      }
+    },
+    {
+      pos: [
+        21,
+        4.5,
+        -10
+      ],
+      size: [
+        5,
+        9,
+        6
+      ],
+      color: "#7c7c80"
+    },
+    {
+      pos: [
+        -21,
+        1.5,
+        10
+      ],
+      size: [
+        5,
+        3,
+        6
+      ],
+      shop: {
+        awning: "#8e44ad",
+        sign: "#f5b7b1"
+      }
+    },
+    {
+      pos: [
+        -15,
+        0.5,
+        10
+      ],
+      size: [
+        5,
+        1,
+        6
+      ],
+      shop: {
+        awning: "#e67e22",
+        sign: "#ecf0f1"
+      }
+    },
+    {
+      pos: [
+        15,
+        5.5,
+        10
+      ],
+      size: [
+        5,
+        11,
+        6
+      ],
+      color: "#a86c48",
+      shop: {
+        awning: "#16a085",
+        sign: "#fde3a7"
+      }
+    },
+    {
+      pos: [
+        21,
+        4.5,
+        10
+      ],
+      size: [
+        5,
+        9,
+        6
+      ],
+      color: "#7c7c80"
+    }
+  ],
+  roofs: [
+    {
+      pos: [
+        -25,
+        7.4,
+        -22.5
+      ],
+      size: [
+        8.4,
+        0.8,
+        3.4
+      ],
+      color: "#474e56"
+    },
+    {
+      pos: [
+        -15,
+        10.4,
+        -22.5
+      ],
+      size: [
+        8.4,
+        0.8,
+        3.4
+      ],
+      color: "#474e56"
+    },
+    {
+      pos: [
+        -5,
+        13.4,
+        -22.5
+      ],
+      size: [
+        8.4,
+        0.8,
+        3.4
+      ],
+      color: "#474e56"
+    },
+    {
+      pos: [
+        5,
+        8.4,
+        -22.5
+      ],
+      size: [
+        8.4,
+        0.8,
+        3.4
+      ],
+      color: "#474e56"
+    },
+    {
+      pos: [
+        15,
+        11.4,
+        -22.5
+      ],
+      size: [
+        8.4,
+        0.8,
+        3.4
+      ],
+      color: "#474e56"
+    },
+    {
+      pos: [
+        25,
+        14.4,
+        -22.5
+      ],
+      size: [
+        8.4,
+        0.8,
+        3.4
+      ],
+      color: "#474e56"
+    },
+    {
+      pos: [
+        -25,
+        9.4,
+        22.5
+      ],
+      size: [
+        8.4,
+        0.8,
+        3.4
+      ],
+      color: "#474e56"
+    },
+    {
+      pos: [
+        -15,
+        12.4,
+        22.5
+      ],
+      size: [
+        8.4,
+        0.8,
+        3.4
+      ],
+      color: "#474e56"
+    },
+    {
+      pos: [
+        -5,
+        7.4,
+        22.5
+      ],
+      size: [
+        8.4,
+        0.8,
+        3.4
+      ],
+      color: "#474e56"
+    },
+    {
+      pos: [
+        5,
+        10.4,
+        22.5
+      ],
+      size: [
+        8.4,
+        0.8,
+        3.4
+      ],
+      color: "#474e56"
+    },
+    {
+      pos: [
+        15,
+        13.4,
+        22.5
+      ],
+      size: [
+        8.4,
+        0.8,
+        3.4
+      ],
+      color: "#474e56"
+    },
+    {
+      pos: [
+        25,
+        8.4,
+        22.5
+      ],
+      size: [
+        8.4,
+        0.8,
+        3.4
+      ],
+      color: "#474e56"
+    },
+    {
+      pos: [
+        -32.5,
+        11.4,
+        -15
+      ],
+      size: [
+        3.4,
+        0.8,
+        8.4
+      ],
+      color: "#474e56"
+    },
+    {
+      pos: [
+        -32.5,
+        14.4,
+        -5
+      ],
+      size: [
+        3.4,
+        0.8,
+        8.4
+      ],
+      color: "#474e56"
+    },
+    {
+      pos: [
+        -32.5,
+        9.4,
+        5
+      ],
+      size: [
+        3.4,
+        0.8,
+        8.4
+      ],
+      color: "#474e56"
+    },
+    {
+      pos: [
+        -32.5,
+        12.4,
+        15
+      ],
+      size: [
+        3.4,
+        0.8,
+        8.4
+      ],
+      color: "#474e56"
+    },
+    {
+      pos: [
+        32.5,
+        7.4,
+        -15
+      ],
+      size: [
+        3.4,
+        0.8,
+        8.4
+      ],
+      color: "#474e56"
+    },
+    {
+      pos: [
+        32.5,
+        10.4,
+        -5
+      ],
+      size: [
+        3.4,
+        0.8,
+        8.4
+      ],
+      color: "#474e56"
+    },
+    {
+      pos: [
+        32.5,
+        13.4,
+        5
+      ],
+      size: [
+        3.4,
+        0.8,
+        8.4
+      ],
+      color: "#474e56"
+    },
+    {
+      pos: [
+        32.5,
+        8.4,
+        15
+      ],
+      size: [
+        3.4,
+        0.8,
+        8.4
+      ],
+      color: "#474e56"
+    },
+    {
+      pos: [
+        -21,
+        3.4,
+        -10
+      ],
+      size: [
+        5.4,
+        0.8,
+        6.4
+      ],
+      color: "#474e56"
+    },
+    {
+      pos: [
+        -15,
+        1.4,
+        -10
+      ],
+      size: [
+        5.4,
+        0.8,
+        6.4
+      ],
+      color: "#474e56"
+    },
+    {
+      pos: [
+        15,
+        11.4,
+        -10
+      ],
+      size: [
+        5.4,
+        0.8,
+        6.4
+      ],
+      color: "#474e56"
+    },
+    {
+      pos: [
+        21,
+        9.4,
+        -10
+      ],
+      size: [
+        5.4,
+        0.8,
+        6.4
+      ],
+      color: "#474e56"
+    },
+    {
+      pos: [
+        -21,
+        3.4,
+        10
+      ],
+      size: [
+        5.4,
+        0.8,
+        6.4
+      ],
+      color: "#474e56"
+    },
+    {
+      pos: [
+        -15,
+        1.4,
+        10
+      ],
+      size: [
+        5.4,
+        0.8,
+        6.4
+      ],
+      color: "#474e56"
+    },
+    {
+      pos: [
+        15,
+        11.4,
+        10
+      ],
+      size: [
+        5.4,
+        0.8,
+        6.4
+      ],
+      color: "#474e56"
+    },
+    {
+      pos: [
+        21,
+        9.4,
+        10
+      ],
+      size: [
+        5.4,
+        0.8,
+        6.4
+      ],
+      color: "#474e56"
+    }
+  ],
+  obstacles: [
+    {
+      pos: [
+        -6,
+        0.7,
+        -10
+      ],
+      size: [
+        2.6,
+        1.4,
+        1.2
+      ],
+      color: "#5a5a54"
+    },
+    {
+      pos: [
+        6,
+        0.7,
+        -10
+      ],
+      size: [
+        2.6,
+        1.4,
+        1.2
+      ],
+      color: "#3a6a9a"
+    },
+    {
+      pos: [
+        -5,
+        0.7,
+        8.6
+      ],
+      size: [
+        2.6,
+        1.4,
+        1.2
+      ],
+      color: "#5a5a54"
+    },
+    {
+      pos: [
+        5,
+        0.7,
+        8.6
+      ],
+      size: [
+        2.6,
+        1.4,
+        1.2
+      ],
+      color: "#3a6a9a"
+    },
+    {
+      pos: [
+        -16,
+        0.6,
+        0
+      ],
+      size: [
+        1.6,
+        1.2,
+        1.6
+      ],
+      color: "#5a5a54"
+    },
+    {
+      pos: [
+        16,
+        0.6,
+        0
+      ],
+      size: [
+        1.6,
+        1.2,
+        1.6
+      ],
+      color: "#3a6a9a"
+    },
+    {
+      pos: [
+        0,
+        0.6,
+        -11.8
+      ],
+      size: [
+        2.2,
+        1.2,
+        1.2
+      ],
+      color: "#5a5a54"
+    }
+  ],
+  trees: [
+    {
+      pos: [
+        -8,
+        0,
+        12.6
+      ]
+    },
+    {
+      pos: [
+        8,
+        0,
+        12.6
+      ]
+    }
+  ],
+  benches: [
+    [
+      -3,
+      -3
+    ],
+    [
+      3,
+      3
+    ]
+  ],
+  lamps: [
+    [
+      -9,
+      -9
+    ],
+    [
+      9,
+      -9
+    ],
+    [
+      -9,
+      9
+    ],
+    [
+      9,
+      9
+    ],
+    [
+      -24,
+      12.6
+    ],
+    [
+      24,
+      12.6
+    ],
+    [
+      0,
+      12.6
+    ],
+    [
+      -24,
+      -12
+    ],
+    [
+      24,
+      -12
+    ],
+    [
+      0,
+      15.9
+    ]
+  ],
+  botSpawns: [
+    [
+      -24,
+      1,
+      -12
+    ],
+    [
+      24,
+      1,
+      -12
+    ],
+    [
+      -24,
+      1,
+      12.6
+    ],
+    [
+      24,
+      1,
+      12.6
+    ],
+    [
+      0,
+      1,
+      -12.8
+    ],
+    [
+      -16,
+      1,
+      3
+    ],
+    [
+      16,
+      1,
+      -3
+    ],
+    [
+      0,
+      1,
+      15.9
+    ],
+    [
+      -24,
+      1,
+      0
+    ],
+    [
+      24,
+      1,
+      0
+    ],
+    [
+      -6,
+      1,
+      15.9
+    ],
+    [
+      6,
+      1,
+      -12.8
+    ]
+  ],
+  pickupSpots: [
+    [
+      -20,
+      1,
+      -6
+    ],
+    [
+      20,
+      1,
+      6
+    ],
+    [
+      -20,
+      1,
+      6
+    ],
+    [
+      20,
+      1,
+      -6
+    ],
+    [
+      0,
+      1,
+      -9.6
+    ],
+    [
+      0,
+      1,
+      12.6
+    ]
+  ],
+  surfaces: {
+    roads: [
+      {
+        x: 0,
+        z: 18.6,
+        w: 56,
+        d: 4.2
+      },
+      {
+        x: -28,
+        z: 0,
+        w: 3.6,
+        d: 33
+      },
+      {
+        x: 28,
+        z: 0,
+        w: 3.6,
+        d: 33
+      },
+      {
+        x: -10,
+        z: 0,
+        w: 3.2,
+        d: 33
+      },
+      {
+        x: 10,
+        z: 0,
+        w: 3.2,
+        d: 33
+      }
+    ],
+    sidewalks: [
+      {
+        x: 0,
+        z: 15.649999999999999,
+        w: 56,
+        d: 1.5
+      },
+      {
+        x: 0,
+        z: 21.550000000000004,
+        w: 56,
+        d: 1.5
+      },
+      {
+        x: -30.650000000000002,
+        z: 0,
+        w: 1.5,
+        d: 33
+      },
+      {
+        x: -25.349999999999998,
+        z: 0,
+        w: 1.5,
+        d: 33
+      },
+      {
+        x: 25.349999999999998,
+        z: 0,
+        w: 1.5,
+        d: 33
+      },
+      {
+        x: 30.650000000000002,
+        z: 0,
+        w: 1.5,
+        d: 33
+      },
+      {
+        x: -12.45,
+        z: 0,
+        w: 1.5,
+        d: 33
+      },
+      {
+        x: -7.550000000000001,
+        z: 0,
+        w: 1.5,
+        d: 33
+      },
+      {
+        x: 7.550000000000001,
+        z: 0,
+        w: 1.5,
+        d: 33
+      },
+      {
+        x: 12.45,
+        z: 0,
+        w: 1.5,
+        d: 33
+      }
+    ],
+    rails: [
+      {
+        x: 0,
+        z: -18.6,
+        w: 56,
+        d: 1.8
+      },
+      {
+        x: 0,
+        z: -15.6,
+        w: 56,
+        d: 1.8
+      }
+    ],
+    paths: [
+      {
+        x: 0,
+        z: -6,
+        w: 2.2,
+        d: 9
+      },
+      {
+        x: 5,
+        z: 4,
+        w: 10,
+        d: 1.8
+      }
+    ],
+    crosswalks: [
+      {
+        x: -10,
+        z: 18.6,
+        w: 3.2,
+        d: 4.2,
+        axis: "z"
+      },
+      {
+        x: 10,
+        z: 18.6,
+        w: 3.2,
+        d: 4.2,
+        axis: "z"
+      },
+      {
+        x: -28,
+        z: 9,
+        w: 3.6,
+        d: 2.8,
+        axis: "x"
+      },
+      {
+        x: 28,
+        z: 9,
+        w: 3.6,
+        d: 2.8,
+        axis: "x"
+      }
+    ]
+  },
+  parkingLots: [
+    {
+      x: -19,
+      z: 15.3,
+      w: 13,
+      d: 2.2,
+      axis: "x"
+    },
+    {
+      x: 21,
+      z: 15.3,
+      w: 9,
+      d: 2.2,
+      axis: "x"
+    }
+  ],
+  assetDefaults: {
+    static: 12,
+    vehicle: 9,
+    pedestrian: 6,
+    animal: 3
+  }
 };
 
-// Obvodové budovy — dlouhé haly a paneláky, vyšší a hranatější, uzavřený rám.
-const BUILDINGS = [
-  // Severní řada (z = -14)
-  { pos: [-14, 7, -14], size: [10, 14, 2], color: '#7c7c80' },
-  { pos: [-4, 8, -14], size: [9, 16, 2], color: '#9a5a36' },
-  { pos: [6, 6, -14], size: [10, 12, 2], color: '#62666e' },
-  { pos: [15.5, 7.5, -14], size: [7, 15, 2], color: '#8c847a' },
-  // Jižní řada (z = 14)
-  { pos: [-14.5, 8, 14], size: [9, 16, 2], color: '#a86c48' },
-  { pos: [-4.5, 6, 14], size: [10, 12, 2], color: '#55555c' },
-  { pos: [5.5, 7, 14], size: [9, 14, 2], color: '#7c7c80' },
-  { pos: [15, 8, 14], size: [8, 16, 2], color: '#62666e' },
-  // Východní strana (x = 19)
-  { pos: [19, 6, -7], size: [2, 12, 12], color: '#8c847a' },
-  { pos: [19, 7, 6], size: [2, 14, 12], color: '#9a5a36' },
-  // Západní strana (x = -19)
-  { pos: [-19, 7, -7], size: [2, 14, 12], color: '#55555c' },
-  { pos: [-19, 6, 6], size: [2, 12, 12], color: '#a86c48' },
-];
-
-// Střechy — stejné odvození jako v Praze, plechově šedé.
-const ROOFS = BUILDINGS.map((b) => ({
-  pos: [b.pos[0], b.pos[1] + b.size[1] / 2 + 0.4, b.pos[2]],
-  size: [b.size[0] + 0.4, 0.8, b.size[2] + 0.4],
-  color: '#474e56',
-}));
-
-// Překážky — přepravní kontejnery (delší boxy) a dřevěné palety.
-const OBSTACLES = [
-  // Kontejnery
-  { pos: [-6, 0.8, -3], size: [4, 1.6, 1.6], color: '#3a6a9a' },
-  { pos: [-6, 2.4, -3], size: [4, 1.6, 1.6], color: '#8a4a2a' }, // stohovaný
-  { pos: [6, 0.8, 3], size: [4, 1.6, 1.6], color: '#8a4a2a' },
-  { pos: [0, 0.8, -6], size: [1.6, 1.6, 4], color: '#3a6a9a' },
-  { pos: [-8, 0.8, 5], size: [1.6, 1.6, 4], color: '#8a4a2a' },
-  { pos: [8, 0.8, -5], size: [1.6, 1.6, 4], color: '#3a6a9a' },
-  // Palety
-  { pos: [3, 0.15, 6], size: [1.6, 0.3, 1.6], color: '#7a5a36' },
-  { pos: [-3, 0.15, 7], size: [1.6, 0.3, 1.6], color: '#7a5a36' },
-  { pos: [10, 0.15, 8], size: [1.6, 0.3, 1.6], color: '#7a5a36' },
-  { pos: [-10, 0.15, -8], size: [1.6, 0.3, 1.6], color: '#7a5a36' },
-];
-
-// Zeleně tu moc není.
-const TREES = [
-  { pos: [-12, 0, -8] },
-  { pos: [12, 0, 8] },
-];
-
-// Lavičky — pozice [x, z].
-const BENCHES = [
-  [-5, 3],
-  [5, -3],
-];
-
-// Spawnovací body botů [x, y, z] — po obvodu areálu.
-const BOT_SPAWNS = [
-  [-14, 1, -10],
-  [14, 1, -10],
-  [-14, 1, 10],
-  [14, 1, 10],
-  [0, 1, -11],
-  [-16, 1, 0],
-  [16, 1, 0],
-  [-6, 1, 11],
-  [6, 1, 11],
-  [10, 1, -2],
-];
-
-// Pozice lékárniček [x, y, z].
-const PICKUP_SPOTS = [
-  [-13, 1, -4],
-  [13, 1, 4],
-  [-5, 1, 9],
-  [5, 1, -9],
-];
-
-// Pouliční lampy — pozice [x, z].
-const LAMPS = [
-  [-9, -9],
-  [9, -9],
-  [-9, 9],
-  [9, 9],
-  [-13, 0],
-  [13, 0],
-];
-
-// Povrchy — jedna široká průjezdná silnice, průmyslová vlečka přes celou šířku
-// a betonové/škvárové pěšiny mezi kontejnery. Silnice je na z≈11 a vlečka na
-// z≈-10 (posun od ±8 kvůli paletám [±10,±8], stromům na z=±8 a kontejneru
-// [0,-6] sahajícímu až k z=-8); pásy nekolidují s žádnou překážkou.
-const SURFACES = {
-  // Široká přímá silnice přes celou šířku areálu (mezi fasádami x=±18).
-  roads: [{ x: 0, z: 10.9, w: 36, d: 3.6 }],
-  // Betonové chodníky podél severních hal a bočních stěn.
-  sidewalks: [
-    { x: 0, z: -12.5, w: 36, d: 1 },
-    { x: -17.5, z: 0.15, w: 1, d: 17.9 },
-    { x: 17.5, z: 0.15, w: 1, d: 17.9 },
-  ],
-  // Kolejová vlečka přes celou šířku (těžší rozchod 1.8).
-  rails: [{ x: 0, z: -10.2, w: 36, d: 1.8 }],
-  // Industriální pěšiny — dvě podélné spojky silnice↔vlečka a krátká odbočka.
-  paths: [
-    { x: -10.9, z: 1.15, w: 1.4, d: 15.9 },
-    { x: 10.9, z: -1.15, w: 1.4, d: 15.9 },
-    { x: 4.5, z: -6.9, w: 1.2, d: 4.8 },
-  ],
-  // Přechody přes silnici — u středu a u ústí západní pěšiny.
-  crosswalks: [
-    { x: 0, z: 10.9, w: 2.6, d: 3.6, axis: 'z' },
-    { x: -10.9, z: 10.9, w: 2.2, d: 3.6, axis: 'z' },
-  ],
-};
-
-// Výchozí počty dekoračních assetů — průmysl: nejvíc vozidel, chodců málo.
-const ASSET_DEFAULTS = { static: 8, vehicle: 7, pedestrian: 4, animal: 2 };
-
-export default {
-  id: 'ostrava',
-  name: 'Ostrava — Dolní oblast',
-  desc: 'Zamlžený industriální plac mezi halami a paneláky, kde kryjí stohované kontejnery a palety.',
-  palette: PALETTE,
-  centerpiece: 'miningTower',
-  buildings: BUILDINGS,
-  roofs: ROOFS,
-  obstacles: OBSTACLES,
-  trees: TREES,
-  benches: BENCHES,
-  botSpawns: BOT_SPAWNS,
-  pickupSpots: PICKUP_SPOTS,
-  lamps: LAMPS,
-  surfaces: SURFACES,
-  assetDefaults: ASSET_DEFAULTS,
-};
+export default map;

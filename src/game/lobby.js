@@ -47,6 +47,11 @@ export function getActiveMap() {
   return { ...map, palette: applyEnvSkin(map.palette) };
 }
 
+// Rozměry arény aktivní mapy (fallback = původní 40×30)
+export function getArena() {
+  return getActiveMap().arena || { width: 40, depth: 30 };
+}
+
 export function getActiveMode() {
   return getModeById(getSelectedModeId());
 }

@@ -1,7 +1,7 @@
 // Odměny za zničení assetů a penalizace za zabití chráněných (dítě, pes,
 // zdravotník). Seznamy jsou konfigurace — uprav rozsahy/váhy podle chuti.
 import { bus } from '@/game/events.js';
-import { gameState } from '@/game/state.js';
+import { gameState, getSelectedCharacter } from '@/game/state.js';
 
 // Časované efekty hráče — odpočítává Player, čtou Projectiles/Player/HUD.
 export const playerEffects = {
@@ -82,10 +82,71 @@ export const REWARDS = [
     apply: () => {
       playerEffects.specialWeaponUntil = 15;
       bus.emit('special-weapon-granted');
-      return '🔫 Speciální zbraň (15 s)';
+      return '🔫 Zlatý mód zbraně (15 s)';
+    },
+  },
+  {
+    id: 'ammo2',
+    weight: 2,
+    apply: () => {
+      bus.emit('grant-ammo', { slot: 1 });
+      return '🔋 Náboje do zbraně 2';
+    },
+  },
+  {
+    id: 'ammo3',
+    weight: 2,
+    apply: () => {
+      bus.emit('grant-ammo', { slot: 2 });
+      return '🔋 Náboje do zbraně 3';
+    },
+  },
+  {
+    id: 'ammo4',
+    weight: 2,
+    apply: () => {
+      bus.emit('grant-ammo', { slot: 3 });
+      return '🔋 Náboje do samopalu';
+    },
+  },
+  {
+    id: 'ammo5',
+    weight: 2,
+    apply: () => {
+      bus.emit('grant-ammo', { slot: 4 });
+      return '🚀 Rakety do raketometu';
+    },
+  },
+  {
+    id: 'weapon6',
+    weight: 1,
+    apply: () => {
+      if ((getSelectedCharacter()?.weapons?.length || 0) > 5) {
+        bus.emit('grant-ammo', { slot: 5 });
+        return '🔋 Náboje do Zlatého kanónu';
+      }
+      bus.emit('grant-weapon4');
+      return '🥇 Zlatý kanón!';
     },
   },
 ];
+
+// Bonus za zabití jiného hráče/bota: plná munice + zdraví + brnění
+export function grantKillBonus() {
+  const healthGain = Math.round(10 + Math.random() * 40);
+  const armorGain = Math.round(10 + Math.random() * 40);
+  gameState.playerHealth = Math.min(
+    gameState.playerMaxHealth,
+    gameState.playerHealth + healthGain
+  );
+  bus.emit('health-changed', gameState.playerHealth);
+  playerEffects.bonusArmor = Math.min(0.5, (playerEffects.bonusArmor || 0) + armorGain / 200);
+  playerEffects.bonusArmorTimer = 30;
+  bus.emit('grant-ammo', { slot: 'all' });
+  const label = `☠️ Kill! +${healthGain} HP, +${armorGain} armor, munice doplněna`;
+  bus.emit('reward-granted', { label });
+  return label;
+}
 
 // --- Penalizace ------------------------------------------------------------
 export const PENALTIES = [

@@ -157,6 +157,13 @@ export default function Home() {
         </div>
         <div className="flex gap-2">
           <button
+            onClick={() => navigate('/admin')}
+            className="px-3 py-1.5 rounded-lg text-xs font-bold border border-emerald-400/40 text-emerald-300 hover:bg-emerald-500/10"
+            style={{ background: 'rgba(255,255,255,0.05)' }}
+          >
+            🛠 Admin
+          </button>
+          <button
             onClick={() => navigate('/settings')}
             className="px-3 py-1.5 rounded-lg text-xs font-bold border border-white/20 hover:bg-white/10"
             style={{ background: 'rgba(255,255,255,0.05)' }}

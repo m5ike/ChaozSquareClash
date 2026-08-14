@@ -37,6 +37,10 @@ export default function Bots() {
   const { camera } = useThree();
 
   const map = useMemo(() => getActiveMap(), []);
+  const arenaBounds = useMemo(() => {
+    const a = map.arena || { width: 40, depth: 30 };
+    return { x: a.width / 2 - 3, z: a.depth / 2 - 2.5 };
+  }, [map]);
   const obstacleGrid = useMemo(() => buildObstacleGrid(map), [map]);
   const modeId = gameState.mode?.id || 'dm';
   const isTeamMode = modeId === 'tdm' || modeId === 'ctf';
@@ -192,7 +196,7 @@ export default function Bots() {
     // CTF: modří honí červeného vlajkonoše; červený vlajkonoš míří domů
     if (mode?.id === 'ctf') {
       if (mode.blueFlagCarrier === enemy.id) {
-        return { x: 0, z: -12, kind: 'base' }; // červená základna (sever)
+        return { x: 0, z: -(arenaBounds.z + 0.5), kind: 'base' }; // červená základna (sever)
       }
       if (enemy.team === 'blue' && mode.blueFlagCarrier !== null) {
         const carrier = gameState.enemies[mode.blueFlagCarrier];
@@ -203,7 +207,7 @@ export default function Bots() {
       }
       if (enemy.team === 'red' && mode.blueFlagCarrier === null && enemy.id === firstAliveRed()) {
         // určený útočník jde pro modrou vlajku (jih)
-        return { x: 0, z: 12, kind: 'flag' };
+        return { x: 0, z: arenaBounds.z + 0.5, kind: 'flag' };
       }
     }
     // KOTH: když hráč drží zónu, červení ji kontestují
@@ -312,9 +316,9 @@ export default function Bots() {
           const angle = Math.random() * Math.PI * 2;
           enemy.body.setTranslation(
             {
-              x: Math.max(-16, Math.min(16, target.x + Math.cos(angle) * 4)),
+              x: Math.max(-arenaBounds.x, Math.min(arenaBounds.x, target.x + Math.cos(angle) * 4)),
               y: enemy.body.translation().y,
-              z: Math.max(-12, Math.min(12, target.z + Math.sin(angle) * 4)),
+              z: Math.max(-arenaBounds.z, Math.min(arenaBounds.z, target.z + Math.sin(angle) * 4)),
             },
             true
           );
@@ -452,7 +456,7 @@ export default function Bots() {
       // Kryt při nízkém zdraví: doběhni za překážku a chvíli se "obvazuj"
       const lowHealth = enemy.health < enemy.maxHealth * 0.35;
       if (lowHealth && now > enemy.coverUntil && !enemy.coverSpot) {
-        enemy.coverSpot = findCoverSpot(pos, target, obstacleGrid.slice(map.buildings.length));
+        enemy.coverSpot = findCoverSpot(pos, target, obstacleGrid.slice(map.buildings.length), arenaBounds);
         enemy.coverUntil = now + 5;
       }
       if (enemy.coverSpot) {

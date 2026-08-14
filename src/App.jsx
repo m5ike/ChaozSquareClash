@@ -5,6 +5,7 @@ import Home from '@/pages/Home.jsx';
 import Play from '@/pages/Play.jsx';
 import Leaderboard from '@/pages/Leaderboard.jsx';
 import Settings from '@/pages/Settings.jsx';
+import AdminLayout from '@/pages/admin/AdminLayout.jsx';
 import NotFound from '@/pages/NotFound.jsx';
 
 // Jedna instance QueryClient pro celou aplikaci
@@ -43,6 +44,7 @@ const AppRoutes = () => {
       <Route path="/play" element={<Play />} />
       <Route path="/leaderboard" element={<Leaderboard />} />
       <Route path="/settings" element={<Settings />} />
+      <Route path="/admin" element={<AdminLayout />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );

@@ -88,6 +88,53 @@ function SlashBlade({ slashType, length, color, skin }) {
 
 export default function WeaponModel({ weapon, skin = null }) {
   const color = weapon.color;
+  // Samopal — kompaktní tělo, zásobník, hlaveň s tlumičem
+  if (weapon.model === 'samopal') {
+    return (
+      <group>
+        <mesh>
+          <boxGeometry args={[0.06, 0.09, 0.3]} />
+          <WeaponMaterial baseColor={skin?.color || '#3a3f47'} skin={skin} />
+        </mesh>
+        <mesh position={[0, -0.1, 0.04]} rotation={[0.15, 0, 0]}>
+          <boxGeometry args={[0.045, 0.14, 0.05]} />
+          <WeaponMaterial baseColor="#2a2e34" skin={null} />
+        </mesh>
+        <mesh position={[0, 0.005, -0.24]} rotation={[Math.PI / 2, 0, 0]}>
+          <cylinderGeometry args={[0.02, 0.02, 0.18, 8]} />
+          <WeaponMaterial baseColor="#22262c" skin={skin} />
+        </mesh>
+        <mesh position={[0, 0.065, 0.02]}>
+          <boxGeometry args={[0.03, 0.03, 0.12]} />
+          <WeaponMaterial baseColor="#22262c" skin={null} />
+        </mesh>
+      </group>
+    );
+  }
+  // Raketomet — tlustá roura s raketou uvnitř
+  if (weapon.model === 'raketomet') {
+    return (
+      <group>
+        <mesh rotation={[Math.PI / 2, 0, 0]}>
+          <cylinderGeometry args={[0.075, 0.085, 0.55, 12]} />
+          <WeaponMaterial baseColor={skin?.color || '#5a6a3a'} skin={skin} />
+        </mesh>
+        <mesh position={[0, 0, -0.31]} rotation={[Math.PI / 2, 0, 0]}>
+          <cylinderGeometry args={[0.09, 0.075, 0.06, 12]} />
+          <WeaponMaterial baseColor="#3e4a28" skin={null} />
+        </mesh>
+        {/* špička rakety vykukující z roury */}
+        <mesh position={[0, 0, -0.36]} rotation={[-Math.PI / 2, 0, 0]}>
+          <coneGeometry args={[0.055, 0.12, 10]} />
+          <WeaponMaterial baseColor="#c03828" skin={null} />
+        </mesh>
+        <mesh position={[0, -0.09, 0.1]}>
+          <boxGeometry args={[0.04, 0.1, 0.05]} />
+          <WeaponMaterial baseColor="#3e4a28" skin={null} />
+        </mesh>
+      </group>
+    );
+  }
   if (weapon.slash) {
     const length = 0.35 + weapon.slash.lengthPct * 0.6;
     return (
