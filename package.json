@@ -1,0 +1,33 @@
+{
+  "name": "namesti-chaosu",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Bláznivá 3D střílečka z českých měst — retro grafika ve stylu Quake, čeští hrdinové a bizarní zbraně.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "@base44/sdk": "^0.8.0",
+    "@react-three/drei": "^9.117.3",
+    "@react-three/fiber": "^8.17.10",
+    "@react-three/postprocessing": "^2.19.1",
+    "@react-three/rapier": "^1.5.0",
+    "@tanstack/react-query": "^5.66.0",
+    "postprocessing": "^6.39.4",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^7.2.0",
+    "three": "^0.169.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.5.1",
+    "tailwindcss": "^3.4.17",
+    "vite": "^6.1.0"
+  }
+}

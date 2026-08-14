@@ -1,0 +1,21 @@
+{
+  "name": "Náměstí Chaosu",
+  "short_name": "Náměstí Chaosu",
+  "description": "Bláznivá multiplayerová 3D střílečka z českých měst, kde místo zbraní používáte plyšáky, koloběžky a další bizarní předměty. Užijte si retro grafiku ve stylu Quake a intuitivní ovládání na svém telefonu.",
+  "icons": [
+    {
+      "src": "/assets/logo.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/assets/logo.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "start_url": "/",
+  "display": "standalone",
+  "theme_color": "#000000",
+  "background_color": "#ffffff"
+}
